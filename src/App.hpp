@@ -10,11 +10,15 @@ class App {
   sf::Clock clock;
   sf::Vector2f mouseCurr;
   sf::Vector2f mousePrev;
+  sf::Shader circleShader;
 
-  sf::Vector2f gravity{0.f, 300.f};
-  std::vector<VerletObject> verletObjects;
-  float radius = 30.f;
+  std::vector<VerletObject> circles;
+  sf::Glsl::Vec2* posCircles = new sf::Glsl::Vec2[MAX_CIRCLES];
   float dt;
+
+  sf::Texture backgroundTexture;
+  sf::Sprite background;
+  sf::Uint8* pixels = new sf::Uint8[WIDTH * HEIGHT * 4];
 
   void setupSFML() {
     // Setup main window
@@ -23,54 +27,55 @@ class App {
 
     // Font for some test text
     genericFont.loadFromFile("../../src/fonts/Minecraft rus.ttf");
+
+    circleShader.loadFromFile("../../src/shaders/circle.frag", sf::Shader::Fragment);
+    circleShader.setUniform("resolution", sf::Glsl::Vec2{WIDTH, HEIGHT});
+
+    for (int i = 0; i < WIDTH * HEIGHT * 4; i++)
+      pixels[i] = 0;
+
+    backgroundTexture.create(WIDTH, HEIGHT);
+    backgroundTexture.update(pixels);
+    background.setTexture(backgroundTexture);
   }
 
   void setupProgram() {
     srand((unsigned)time(NULL));
 
-    VerletObject verletObject({WIDTH / 2.f, HEIGHT / 2.f});
-    verletObject.setRadius(radius);
-    verletObject.setOriginToCenter();
-    verletObject.setPosition(WIDTH / 2.f, HEIGHT / 2.f);
-    verletObject.setFillColor(sf::Color::White);
-
-    verletObjects.push_back(verletObject);
+    sf::Vector2f pos{WIDTH / 2.f, HEIGHT / 2.f};
+    addCircle(VerletObject(pos, pos));
   }
 
-  void applyGravity() {
-    for (VerletObject& vo : verletObjects)
-      vo.accelerate(gravity);
+  void addCircle(VerletObject vo) {
+    circles.push_back(vo);
   }
 
   void updatePosition() {
-    for (VerletObject& vo : verletObjects)
+    for (VerletObject& vo : circles)
       vo.updatePosition(dt);
   }
 
   void solveCollisions() {
-    for (VerletObject& vo1 : verletObjects)
-      for (VerletObject& vo2 : verletObjects)
+    for (VerletObject& vo1 : circles)
+      for (VerletObject& vo2 : circles)
         vo1.checkCollision(vo2);
-    /* for (int i = 0; i < verletObjects.size(); i++) { */
-    /*   VerletObject& vo1 = verletObjects[i]; */
-    /*   for (VerletObject& vo2 : verletObjects) */
-    /*     vo1.checkCollision(vo2); */
-    /* } */
   }
 
   void update() {
-    int subSteps = 2;
-    float subDt = dt / static_cast<float>(subSteps);
-    for (int i = 0; i < subSteps; i++) {
-      applyGravity();
-      solveCollisions();
-      updatePosition();
-    }
+    solveCollisions();
+    updatePosition();
   }
 
   void draw() {
-    for (const VerletObject& vo : verletObjects)
-      window.draw(vo);
+    int cicleAmount = circles.size();
+    for (int i = 0; i < cicleAmount; i++) {
+      posCircles[i] = circles[i].getPosition();
+      window.draw(circles[i]);
+    }
+
+    circleShader.setUniform("posArrayActualSize", static_cast<int>(cicleAmount));
+    circleShader.setUniformArray("posArray", posCircles, cicleAmount);
+    window.draw(background, &circleShader);
   }
 
   public:
@@ -99,27 +104,15 @@ class App {
               static_cast<float>(sf::Mouse::getPosition(window).y)
             };
 
-            if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
-              VerletObject newCircle(mousePrev);
-              newCircle.setRadius(radius);
-              newCircle.setOriginToCenter();
-              newCircle.setPosition(mouseCurr);
-              newCircle.setFillColor(sf::Color::White);
-
-              verletObjects.push_back(newCircle);
-            }
+            if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
+              addCircle(VerletObject(mousePrev, mouseCurr));
 
             mousePrev = mouseCurr;
           }
-          if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Key::F) {
-              VerletObject newCircle(mousePrev);
-              newCircle.setRadius(radius);
-              newCircle.setOriginToCenter();
-              newCircle.setPosition(mouseCurr);
-              newCircle.setFillColor(sf::Color::White);
 
-              verletObjects.push_back(newCircle);
-          }
+          if (event.type == sf::Event::MouseButtonReleased)
+            if (event.mouseButton.button == sf::Mouse::Left)
+              addCircle(VerletObject(mousePrev, mouseCurr));
         }
 
         dt = clock.restart().asSeconds();
