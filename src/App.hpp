@@ -29,6 +29,7 @@ class App {
 
     circleShader.loadFromFile("../../src/shaders/circle.frag", sf::Shader::Fragment);
     circleShader.setUniform("resolution", sf::Glsl::Vec2{WIDTH, HEIGHT});
+    circleShader.setUniform("radius", RADIUS);
 
     backgroundTexture.create(WIDTH, HEIGHT);
     background.setTexture(backgroundTexture);
@@ -39,12 +40,14 @@ class App {
 
     sf::Vector2f pos{WIDTH / 2.f, HEIGHT / 2.f};
     addCircle(VerletObject(pos, pos));
-    pos.x += 100.f;
-    pos.y += 100.f;
-    addCircle(VerletObject(pos, pos));
   }
 
   void addCircle(VerletObject vo) {
+    if (circles.size() == MAX_CIRCLES) {
+      print("Trying to exceed max amount of circles");
+      return;
+    }
+
     circles.push_back(vo);
   }
 
