@@ -13,12 +13,11 @@ class App {
   sf::Shader circleShader;
 
   std::vector<VerletObject> circles;
-  sf::Glsl::Vec2* posCircles = new sf::Glsl::Vec2[MAX_CIRCLES];
+  sf::Glsl::Vec2* circlesForShader = new sf::Glsl::Vec2[MAX_CIRCLES];
   float dt;
 
   sf::Texture backgroundTexture;
   sf::Sprite background;
-  sf::Uint8* pixels = new sf::Uint8[WIDTH * HEIGHT * 4];
 
   void setupSFML() {
     // Setup main window
@@ -31,11 +30,7 @@ class App {
     circleShader.loadFromFile("../../src/shaders/circle.frag", sf::Shader::Fragment);
     circleShader.setUniform("resolution", sf::Glsl::Vec2{WIDTH, HEIGHT});
 
-    for (int i = 0; i < WIDTH * HEIGHT * 4; i++)
-      pixels[i] = 0;
-
     backgroundTexture.create(WIDTH, HEIGHT);
-    backgroundTexture.update(pixels);
     background.setTexture(backgroundTexture);
   }
 
@@ -43,6 +38,9 @@ class App {
     srand((unsigned)time(NULL));
 
     sf::Vector2f pos{WIDTH / 2.f, HEIGHT / 2.f};
+    addCircle(VerletObject(pos, pos));
+    pos.x += 100.f;
+    pos.y += 100.f;
     addCircle(VerletObject(pos, pos));
   }
 
@@ -67,21 +65,23 @@ class App {
   }
 
   void draw() {
-    int cicleAmount = circles.size();
-    for (int i = 0; i < cicleAmount; i++) {
-      posCircles[i] = circles[i].getPosition();
+    int size = circles.size();
+    for (int i = 0; i < size; i++) {
+      circlesForShader[i] = circles[i].getPosition();
       window.draw(circles[i]);
     }
 
-    circleShader.setUniform("posArrayActualSize", static_cast<int>(cicleAmount));
-    circleShader.setUniformArray("posArray", posCircles, cicleAmount);
+    circleShader.setUniform("actualSize", size);
+    circleShader.setUniformArray("circles", circlesForShader, size);
     window.draw(background, &circleShader);
   }
 
   public:
     App() {}
 
-    ~App() {}
+    ~App() {
+      delete[] circlesForShader;
+    }
 
     void setup() {
       setupSFML();
@@ -118,7 +118,7 @@ class App {
         dt = clock.restart().asSeconds();
         update();
 
-        window.clear();
+        window.clear(sf::Color::Transparent);
 
         draw();
 

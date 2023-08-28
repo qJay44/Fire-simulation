@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
-struct VerletObject : sf::CircleShape{
+struct VerletObject : sf::CircleShape {
 
   VerletObject(sf::Vector2f posPrev, sf::Vector2f posCurr) : positionPrevious(posPrev) {
     setRadius(RADIUS);
