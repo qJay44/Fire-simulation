@@ -11,7 +11,6 @@ struct VerletObject : sf::CircleShape {
     setRadius(RADIUS);
     setOriginToCenter();
     setPosition(posCurr);
-    setFillColor(sf::Color::White);
   }
 
   void updatePosition(float dt) {
@@ -26,15 +25,16 @@ struct VerletObject : sf::CircleShape {
     nextPos.y += acceleration * dt * dt;
 
     // Check horizontal bounds
-    if      (nextPos.x - RADIUS <= 0)     nextPos.x = RADIUS;
-    else if (nextPos.x + RADIUS >= WIDTH) nextPos.x = WIDTH - RADIUS;
+    if      (nextPos.x - RADIUS <= 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
+    else if (nextPos.x + RADIUS >= WIDTH) {nextPos.x = WIDTH - RADIUS; onRightBoundHit();}
 
     // Check vertical bounds
-    if      (nextPos.y - RADIUS <= 0)      nextPos.y = RADIUS;
-    else if (nextPos.y + RADIUS >= HEIGHT) nextPos.y = HEIGHT - RADIUS;
+    if      (nextPos.y - RADIUS <= 0)      {nextPos.y = RADIUS; onTopBoundHit();}
+    else if (nextPos.y + RADIUS >= HEIGHT) {nextPos.y = HEIGHT - RADIUS; onBottomBoundHit(nextPos);}
 
     setPosition(nextPos);
     acceleration = {};
+    temperature -= COOL_VALUE;
   }
 
   void checkCollision(VerletObject& rhs) {
@@ -47,7 +47,9 @@ struct VerletObject : sf::CircleShape {
     sf::Vector2f collisionAxis = {pos1.x - pos2.x, pos1.y - pos2.y};
     float dist = sqrt(collisionAxis.x * collisionAxis.x + collisionAxis.y * collisionAxis.y);
 
-    if (dist < minDist) {
+    if (dist <= minDist) {
+      transferTemperature(temperature, rhs.temperature);
+
       sf::Vector2f n = collisionAxis / dist;
       float delta = minDist - dist;
 
@@ -56,9 +58,37 @@ struct VerletObject : sf::CircleShape {
     }
   }
 
+  const float getTemperature() const {
+    return temperature;
+  }
+
   private:
     sf::Vector2f positionPrevious;
+    sf::Color col;
     float acceleration = 0.f;
+    float temperature = 0.f;
+
+    static void transferTemperature(float& t1, float& t2) {
+      if (t1 > t2) {
+        t1 -= EXCHANGE_VALUE;
+        t2 += EXCHANGE_VALUE;
+      } else {
+        t1 += EXCHANGE_VALUE;
+        t2 -= EXCHANGE_VALUE;
+      }
+    }
+
+    void onTopBoundHit() {}
+    void onRightBoundHit() {}
+    void onLeftBoundHit() {}
+
+    void onBottomBoundHit(sf::Vector2f& pos) {
+      temperature = std::clamp(temperature + 20.f, 0.f, MAX_TEMPERATURE);
+
+      if (random(0.f, 1.f) > 0.99f) {
+        pos.y -= (8.f * temperature / MAX_TEMPERATURE);
+      }
+    }
 
     // Use it after raduis set
     void setOriginToCenter() {

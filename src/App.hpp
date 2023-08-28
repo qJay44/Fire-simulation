@@ -13,7 +13,7 @@ class App {
   sf::Shader circleShader;
 
   std::vector<VerletObject> circles;
-  sf::Glsl::Vec2* circlesForShader = new sf::Glsl::Vec2[MAX_CIRCLES];
+  sf::RectangleShape dummyRect;
   float dt;
 
   sf::Texture backgroundTexture;
@@ -33,6 +33,9 @@ class App {
 
     backgroundTexture.create(WIDTH, HEIGHT);
     background.setTexture(backgroundTexture);
+
+    dummyRect.setSize({WIDTH, HEIGHT});
+    dummyRect.setFillColor(sf::Color::Transparent);
   }
 
   void setupProgram() {
@@ -43,11 +46,6 @@ class App {
   }
 
   void addCircle(VerletObject vo) {
-    if (circles.size() == MAX_CIRCLES) {
-      print("Trying to exceed max amount of circles");
-      return;
-    }
-
     circles.push_back(vo);
   }
 
@@ -57,9 +55,12 @@ class App {
   }
 
   void solveCollisions() {
-    for (VerletObject& vo1 : circles)
-      for (VerletObject& vo2 : circles)
-        vo1.checkCollision(vo2);
+    for (int i = 0; i < circles.size(); i++) {
+      VerletObject& vo1 = circles[i];
+      for (int j = i + 1; j < circles.size(); j++) {
+        vo1.checkCollision(circles[j]);
+      }
+    }
   }
 
   void update() {
@@ -68,23 +69,18 @@ class App {
   }
 
   void draw() {
-    int size = circles.size();
-    for (int i = 0; i < size; i++) {
-      circlesForShader[i] = circles[i].getPosition();
-      window.draw(circles[i]);
+    for (int i = 0; i < circles.size(); i++) {
+      const VerletObject& circle = circles[i];
+      circleShader.setUniform("circle", circle.getPosition());
+      circleShader.setUniform("temperature", circle.getTemperature());
+      window.draw(dummyRect, &circleShader);
     }
-
-    circleShader.setUniform("actualSize", size);
-    circleShader.setUniformArray("circles", circlesForShader, size);
-    window.draw(background, &circleShader);
   }
 
   public:
     App() {}
 
-    ~App() {
-      delete[] circlesForShader;
-    }
+    ~App() {}
 
     void setup() {
       setupSFML();
