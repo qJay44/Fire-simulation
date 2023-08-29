@@ -1,6 +1,6 @@
 #include "SFML/Window.hpp"
-#include "VerletObject.hpp"
 #include "preferences.h"
+#include "quadtree.hpp"
 #include <stdlib.h>
 #include <vector>
 
@@ -11,6 +11,10 @@ class App {
   sf::Vector2f mouseCurr;
   sf::Vector2f mousePrev;
   sf::Shader circleShader;
+  sf::Text fpsText;
+
+  Rectangle* boundary;
+  QuadTree* qt;
 
   std::vector<VerletObject> circles;
   sf::RectangleShape dummyRect;
@@ -18,6 +22,8 @@ class App {
 
   sf::Texture backgroundTexture;
   sf::Sprite background;
+
+  bool showQT = false;
 
   void setupSFML() {
     // Setup main window
@@ -36,13 +42,29 @@ class App {
 
     dummyRect.setSize({WIDTH, HEIGHT});
     dummyRect.setFillColor(sf::Color::Transparent);
+
+    // FPS text setup
+    fpsText.setString("75");
+    fpsText.setFont(genericFont);
+    fpsText.setCharacterSize(20);
+    fpsText.setOutlineColor(sf::Color(31, 31, 31));
+    fpsText.setOutlineThickness(3.f);
+    fpsText.setPosition({ WIDTH - fpsText.getLocalBounds().width, 0 });
   }
 
   void setupProgram() {
     srand((unsigned)time(NULL));
 
-    sf::Vector2f pos{WIDTH / 2.f, HEIGHT / 2.f};
-    addCircle(VerletObject(pos, pos));
+    boundary = new Rectangle{WIDTH / 2.f, HEIGHT / 2.f, WIDTH / 2.f, HEIGHT / 2.f};
+    qt = new QuadTree(*boundary);
+
+    for (int i = 0; i < 1000; i++) {
+      sf::Vector2f pos{
+        static_cast<float>(random(WIDTH)),
+        static_cast<float>(random(HEIGHT))
+      };
+      addCircle(VerletObject(pos, pos));
+    }
   }
 
   void addCircle(VerletObject vo) {
@@ -55,10 +77,22 @@ class App {
   }
 
   void solveCollisions() {
-    for (int i = 0; i < circles.size(); i++) {
-      VerletObject& vo1 = circles[i];
-      for (int j = i + 1; j < circles.size(); j++) {
-        vo1.checkCollision(circles[j]);
+    delete qt;
+    qt = new QuadTree(*boundary);
+
+    // Generate new quad tree
+    for (VerletObject& vo : circles)
+      qt->insert(vo);
+
+    // Query quad tree for each circle and check collisions
+    for (VerletObject& vo1: circles) {
+      std::vector<VerletObject*> nearCircles;
+      sf::Vector2f pos = vo1.getPosition();
+
+      qt->query(nearCircles, Rectangle{pos.x, pos.y, RADIUS * 2, RADIUS * 2});
+
+      for (VerletObject* vo2 : nearCircles) {
+        vo1.checkCollision(*vo2);
       }
     }
   }
@@ -70,17 +104,28 @@ class App {
 
   void draw() {
     for (int i = 0; i < circles.size(); i++) {
+      // TODO: Fix shaders
       const VerletObject& circle = circles[i];
-      circleShader.setUniform("circle", circle.getPosition());
-      circleShader.setUniform("temperature", circle.getTemperature());
-      window.draw(dummyRect, &circleShader);
+      /* circleShader.setUniform("circle", circle.getPosition()); */
+      /* circleShader.setUniform("temperature", circle.getTemperature()); */
+      /* window.draw(dummyRect, &circleShader); */
+      window.draw(circle);
     }
+
+    if (showQT)
+      qt->show(window);
+
+    fpsText.setString(std::to_string((int)(1.f / dt)));
+    window.draw(fpsText);
   }
 
   public:
     App() {}
 
-    ~App() {}
+    ~App() {
+      delete boundary;
+      delete qt;
+    }
 
     void setup() {
       setupSFML();
@@ -94,8 +139,18 @@ class App {
           if (event.type == sf::Event::Closed)
             window.close();
 
-          if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Key::Q)
-            window.close();
+          if (event.type == sf::Event::KeyReleased) {
+            switch (event.key.code) {
+              case sf::Keyboard::Key::Q:
+                window.close();
+                break;
+              case sf::Keyboard::Key::T:
+                showQT = !showQT;
+                break;
+              default:
+                break;
+            }
+          }
 
           if (event.type == sf::Event::MouseMoved) {
             mouseCurr = {

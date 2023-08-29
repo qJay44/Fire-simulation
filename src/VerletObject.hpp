@@ -1,5 +1,5 @@
-#include "SFML/Graphics.hpp"
 #include "SFML/System.hpp"
+#include "SFML/Graphics.hpp"
 #include "myutils.hpp"
 #include "preferences.h"
 #include <algorithm>
