@@ -23,6 +23,7 @@ struct VerletObject : sf::CircleShape {
     positionPrevious = currPos;
     nextPos = currPos + velocity;
     nextPos.y += acceleration * dt * dt;
+    nextPos.y -= std::abs(nextPos.y / HEIGHT * temperature * dt * dt * 0.1f);
 
     // Check horizontal bounds
     if      (nextPos.x - RADIUS <= 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
@@ -32,9 +33,11 @@ struct VerletObject : sf::CircleShape {
     if      (nextPos.y - RADIUS <= 0)      {nextPos.y = RADIUS; onTopBoundHit();}
     else if (nextPos.y + RADIUS >= HEIGHT) {nextPos.y = HEIGHT - RADIUS; onBottomBoundHit(nextPos);}
 
-    setPosition(nextPos);
+    temperature *= COOL_VALUE;
     acceleration = {};
-    temperature -= COOL_VALUE;
+
+    setPosition(nextPos);
+    setFillColor(generateHeatColor());
   }
 
   void checkCollision(VerletObject& rhs) {
@@ -47,7 +50,7 @@ struct VerletObject : sf::CircleShape {
     sf::Vector2f collisionAxis = {pos1.x - pos2.x, pos1.y - pos2.y};
     float dist = sqrt(collisionAxis.x * collisionAxis.x + collisionAxis.y * collisionAxis.y);
 
-    if (dist <= minDist) {
+    if (dist < minDist) {
       transferTemperature(temperature, rhs.temperature);
 
       sf::Vector2f n = collisionAxis / dist;
@@ -55,7 +58,9 @@ struct VerletObject : sf::CircleShape {
 
       setPosition(pos1 + (0.5f * delta * n));
       rhs.setPosition(pos2 - (0.5f * delta * n));
-    }
+
+    } else if (dist == minDist)
+      transferTemperature(temperature, rhs.temperature);
   }
 
   const float getTemperature() const {
@@ -64,17 +69,18 @@ struct VerletObject : sf::CircleShape {
 
   private:
     sf::Vector2f positionPrevious;
-    sf::Color col;
     float acceleration = 0.f;
-    float temperature = 0.f;
+    float temperature = 1000.f;
 
+    // TODO: Make exchange value based on the temperature difference
+    // (Higher temperature transfers bigger value to other object)
     static void transferTemperature(float& t1, float& t2) {
       if (t1 > t2) {
-        t1 -= EXCHANGE_VALUE;
-        t2 += EXCHANGE_VALUE;
+        t2 += t1 * EXCHANGE_VALUE;
+        t1 -= t1 * EXCHANGE_VALUE;
       } else {
-        t1 += EXCHANGE_VALUE;
-        t2 -= EXCHANGE_VALUE;
+        t1 += t2 * EXCHANGE_VALUE;
+        t2 -= t2 * EXCHANGE_VALUE;
       }
     }
 
@@ -83,11 +89,7 @@ struct VerletObject : sf::CircleShape {
     void onLeftBoundHit() {}
 
     void onBottomBoundHit(sf::Vector2f& pos) {
-      temperature = std::clamp(temperature + 20.f, 0.f, MAX_TEMPERATURE);
-
-      if (random(0.f, 1.f) > 0.99f) {
-        pos.y -= (8.f * temperature / MAX_TEMPERATURE);
-      }
+      temperature = std::clamp(temperature + BOTTOM_HEAT, 0.f, MAX_TEMPERATURE);
     }
 
     // Use it after raduis set
@@ -97,6 +99,17 @@ struct VerletObject : sf::CircleShape {
         floatRect.left + floatRect.width / 2.f,
         floatRect.top + floatRect.height / 2.f
       );
+    }
+
+    sf::Color generateHeatColor() {
+      sf::Color col;
+      float t = temperature / MAX_TEMPERATURE * 3 * 256;
+
+      col.r = std::clamp(t, 0.f, 255.f);
+      col.g = std::clamp(t - col.r, 0.f, 255.f);
+      col.b = std::clamp(t - col.r - col.g, 0.f, 255.f);
+
+      return col;
     }
 };
 

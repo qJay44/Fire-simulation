@@ -17,7 +17,6 @@ class App {
   QuadTree* qt;
 
   std::vector<VerletObject> circles;
-  sf::RectangleShape dummyRect;
   float dt;
 
   sf::Texture backgroundTexture;
@@ -39,9 +38,6 @@ class App {
 
     backgroundTexture.create(WIDTH, HEIGHT);
     background.setTexture(backgroundTexture);
-
-    dummyRect.setSize({WIDTH, HEIGHT});
-    dummyRect.setFillColor(sf::Color::Transparent);
 
     // FPS text setup
     fpsText.setString("75");
@@ -84,16 +80,15 @@ class App {
     for (VerletObject& vo : circles)
       qt->insert(vo);
 
-    // Query quad tree for each circle and check collisions
+    // Query quad tree for each circle then check collisions
     for (VerletObject& vo1: circles) {
       std::vector<VerletObject*> nearCircles;
       sf::Vector2f pos = vo1.getPosition();
 
       qt->query(nearCircles, Rectangle{pos.x, pos.y, RADIUS * 2, RADIUS * 2});
 
-      for (VerletObject* vo2 : nearCircles) {
+      for (VerletObject* vo2 : nearCircles)
         vo1.checkCollision(*vo2);
-      }
     }
   }
 
@@ -103,19 +98,14 @@ class App {
   }
 
   void draw() {
-    for (int i = 0; i < circles.size(); i++) {
-      // TODO: Fix shaders
-      const VerletObject& circle = circles[i];
-      /* circleShader.setUniform("circle", circle.getPosition()); */
-      /* circleShader.setUniform("temperature", circle.getTemperature()); */
-      /* window.draw(dummyRect, &circleShader); */
-      window.draw(circle);
-    }
+    for (int i = 0; i < circles.size(); i++)
+      window.draw(circles[i]);
 
     if (showQT)
       qt->show(window);
 
-    fpsText.setString(std::to_string((int)(1.f / dt)));
+    int fps = static_cast<int>((1.f / dt));
+    fpsText.setString(std::to_string(fps));
     window.draw(fpsText);
   }
 
