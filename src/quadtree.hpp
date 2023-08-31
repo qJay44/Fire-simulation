@@ -65,7 +65,7 @@ class QuadTree {
 
     QuadTree(Rectangle boundary)
       : boundary(boundary) {
-        circles.reserve(QUAD_TREE_POINTS_CAPACITY);
+        circles.reserve(QUAD_TREE_CAPACITY);
     }
 
     ~QuadTree() {
@@ -78,7 +78,7 @@ class QuadTree {
     bool insert(VerletObject& circle) {
       if (!boundary.contains(circle.getPosition())) return false;
 
-      if (circles.size() < QUAD_TREE_POINTS_CAPACITY) {
+      if (circles.size() < QUAD_TREE_CAPACITY) {
         circles.push_back(&circle);
         return true;
       } else {
