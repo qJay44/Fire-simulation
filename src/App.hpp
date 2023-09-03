@@ -1,8 +1,6 @@
 #include "SFML/Window.hpp"
-#include "SFML/Graphics.hpp"
 #include "Cell.hpp"
-#include <new>
-#include <stdlib.h>
+#include "utils/sfmlrectangle.h"
 
 class App {
   sf::RenderWindow window;
@@ -14,15 +12,16 @@ class App {
   sf::Text fpsText;
 
   std::vector<Cell> grid;
-  std::map<int, VerletObject> circles;
+  std::vector<VerletObject> circles;
   float dt;
 
   sf::RenderTexture backgroundTexture;
   sf::Sprite background;
 
-  int lastId = 0;
   bool useShader = false;
-  bool doOnce = true;
+  bool showGrid = false;
+  bool highlightCircleCells = false;
+  VerletObject* grabbedCircle = nullptr;
 
   void setupSFML() {
     // Setup main window
@@ -58,52 +57,59 @@ class App {
     grid.resize(COLUMNS * ROWS);
     grid.reserve(COLUMNS * ROWS);
 
+    // Probably better to create this than modifying IX macro
+    // since its need more to calculate and do it all the time
+    // but this one just once per launch
     auto ix = [] (int x, int y) {
       return x + y * COLUMNS;
     };
 
+    // Setup all cells with its neighbours
     for (int x = 0; x < COLUMNS; x++) {
       for (int y = 0; y < ROWS; y++) {
-        int index = x + y * COLUMNS;
-        Cell& cell = grid[index];
+        std::vector<Cell*>& cellNeighbours = grid[ix(x, y)].neighbours;
 
         // Left cell
         if (x > 0) {
-          cell.addNeighbour(WEST, &grid[ix(x - 1, y)]);
+          cellNeighbours.push_back(&grid[ix(x - 1, y)]);
 
           // Up-left cell
           if (y > 0)
-            cell.addNeighbour(NORTH_WEST, &grid[ix(x - 1, y - 1)]);
+            cellNeighbours.push_back(&grid[ix(x - 1, y - 1)]);
 
           // Down-left cell
           if (y < ROWS - 1)
-            cell.addNeighbour(SOUTH_WEST, &grid[ix(x - 1, y + 1)]);
+            cellNeighbours.push_back(&grid[ix(x - 1, y + 1)]);
         }
 
         // Right cell
         if (x < COLUMNS - 1) {
-          cell.addNeighbour(EAST, &grid[ix(x + 1, y)]);
+          cellNeighbours.push_back(&grid[ix(x + 1, y)]);
 
           // Up-right cell
           if (y > 0)
-            cell.addNeighbour(NORTH_EAST, &grid[ix(x + 1, y - 1)]);
+            cellNeighbours.push_back(&grid[ix(x + 1, y - 1)]);
 
           // Down-right cell
           if (y < ROWS - 1)
-            cell.addNeighbour(SOUTH_EAST, &grid[ix(x + 1, y + 1)]);
+            cellNeighbours.push_back(&grid[ix(x + 1, y + 1)]);
         }
 
         // Up cell
         if (y > 0)
-          cell.addNeighbour(NORTH, &grid[ix(x, y - 1)]);
+          cellNeighbours.push_back(&grid[ix(x, y - 1)]);
 
         // Down cell
         if (y < ROWS - 1)
-          cell.addNeighbour(SOUTH, &grid[ix(x, y + 1)]);
+          cellNeighbours.push_back(&grid[ix(x, y + 1)]);
+
+        // Center
+        cellNeighbours.push_back(&grid[ix(x, y)]);
       }
     }
 
-    for (int i = 0; i < 10; i++) {
+    // Spawn initial circles
+    for (int i = 0; i < 1000; i++) {
       int x = random(WIDTH);
       int y = random(HEIGHT);
 
@@ -117,51 +123,87 @@ class App {
     }
   }
 
-  void addCircle(VerletObject vo) {
-    circles.insert(std::pair(lastId++, vo));
-  }
-
-  void getIndex(int x, int y) {
-
+  void addCircle(VerletObject circle) {
+    circles.push_back(circle);
   }
 
   void updatePosition() {
-    for (auto& [_, circle] : circles)
+    for (VerletObject& circle : circles)
       circle.updatePosition(dt);
   }
 
   void solveCollisions() {
+    // Clear all cells containers;
     for (Cell& cell : grid)
       cell.container.clear();
 
-    for (auto& [id, circle] : circles) {
+    // Fill all cells with new circles
+    for (VerletObject& circle : circles) {
       sf::Vector2f pos = circle.getPosition();
-      int x = std::clamp(static_cast<int>(pos.x), 1, WIDTH - 1);
-      int y = std::clamp(static_cast<int>(pos.y), 1, HEIGHT - 1);
+      int x = pos.x;
+      int y = pos.y;
 
-      // FIXME: Wrong index calculation
-      grid[IX(x, y)].container.push_back(id);
+      grid[IX(x, y)].container.push_back(&circle);
     }
 
-    for (Cell& cell : grid)
-      cell.checkCollisions(circles);
+    // Check collisions for all circles in cells
+    for (const Cell& cell : grid)
+      cell.checkCollisions();
   }
 
   void update() {
-    updatePosition();
     solveCollisions();
+    updatePosition();
   }
 
   void draw() {
     // Draw all circles on texture
-    for (const auto& [_, cicle] : circles)
-      backgroundTexture.draw(cicle);
+    for (VerletObject& circle : circles)
+      backgroundTexture.draw(circle);
 
     // Draw texture on screen
     if (useShader)
       window.draw(background, &shader);
     else
       window.draw(background);
+
+    if (showGrid) {
+      for (int x = 0; x < COLUMNS; x++) {
+        for (int y = 0; y < ROWS; y++) {
+          sf::Vector2i pos{x * CELL_SIZE,  y * CELL_SIZE};
+          sf::RectangleShape rect = createOutlineRectangle(CELL_SIZE, pos);
+          window.draw(rect);
+        }
+      }
+    }
+
+    if (highlightCircleCells) {
+      auto drawAlongY = [this] (sf::Vector2i& pos, int y) {
+        for (int dy = -1; dy <= 1; dy++) {
+          pos.y = (y + dy) * CELL_SIZE;
+          sf::RectangleShape rectL = createOutlineRectangle(CELL_SIZE, pos, sf::Color::Magenta);
+          window.draw(rectL);
+        }
+      };
+
+      for (int x = 0; x < COLUMNS; x++) {
+        for (int y = 0; y < ROWS; y++) {
+          if (grid[x + y * COLUMNS].container.size() > 0) {
+            // Draw center
+            sf::Vector2i pos{x * CELL_SIZE, y * CELL_SIZE};
+            drawAlongY(pos, y);
+
+            // Draw left side
+            pos.x = (x - 1) * CELL_SIZE;
+            drawAlongY(pos, y);
+
+            // Draw right side
+            pos.x = (x + 1) * CELL_SIZE;
+            drawAlongY(pos, y);
+          }
+        }
+      }
+    }
 
     // Show FPS
     int fps = static_cast<int>((1.f / dt));
@@ -191,29 +233,60 @@ class App {
               case sf::Keyboard::Key::Q:
                 window.close();
                 break;
-              case sf::Keyboard::Key::S:
+              case sf::Keyboard::Key::C:
                 useShader = !useShader;
+                break;
+              case sf::Keyboard::Key::G:
+                showGrid = !showGrid;
+                break;
+              case sf::Keyboard::Key::H:
+                highlightCircleCells = !highlightCircleCells;
                 break;
               default:
                 break;
             }
           }
 
+          // Update mouse coords and spawn circle if LMB pressed (while moving it)
           if (event.type == sf::Event::MouseMoved) {
             mouseCurr = {
               static_cast<float>(sf::Mouse::getPosition(window).x),
               static_cast<float>(sf::Mouse::getPosition(window).y)
             };
-
             if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
               addCircle(VerletObject(mousePrev, mouseCurr));
 
             mousePrev = mouseCurr;
           }
 
-          if (event.type == sf::Event::MouseButtonReleased)
+          // Grab the circle and drag it
+          if (sf::Mouse::isButtonPressed(sf::Mouse::Right)) {
+            if (!grabbedCircle) {
+              int x = mouseCurr.x;
+              int y = mouseCurr.y;
+              std::vector<VerletObject*>& cont = grid[IX(x, y)].container;
+
+              if (cont.size() > 0) {
+                grabbedCircle = cont[0];
+                grabbedCircle->grabbed = true;
+              }
+            } else
+              grabbedCircle->setGrabPosition(mouseCurr);
+          }
+
+          if (event.type == sf::Event::MouseButtonReleased) {
+            // Add circle (while not moving)
             if (event.mouseButton.button == sf::Mouse::Left)
               addCircle(VerletObject(mousePrev, mouseCurr));
+
+            // Leave grabbed circle
+            if (event.mouseButton.button == sf::Mouse::Right) {
+              if (grabbedCircle) {
+                grabbedCircle->grabbed = false;
+                grabbedCircle = nullptr;
+              }
+            }
+          }
         }
 
         dt = clock.restart().asSeconds();

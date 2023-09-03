@@ -7,10 +7,7 @@
 #include <stdexcept>
 
 struct VerletObject : sf::CircleShape {
-
-  VerletObject() {
-    throw std::runtime_error("test");
-  }
+  bool grabbed = false;
 
   VerletObject(sf::Vector2f posPrev, sf::Vector2f posCurr) : positionPrevious(posPrev) {
     setRadius(RADIUS);
@@ -19,6 +16,7 @@ struct VerletObject : sf::CircleShape {
   }
 
   void updatePosition(float dt) {
+    if (grabbed) return;
     acceleration += GRAVITY;
 
     sf::Vector2f currPos = getPosition();
@@ -29,17 +27,16 @@ struct VerletObject : sf::CircleShape {
     nextPos = currPos + velocity;
     nextPos.y += acceleration * dt * dt;
 
-    /* nextPos.y -= 30.f * temperature / MAX_TEMPERATURE * dt; */
     int upwardForce = floor(pow(100, temperature - MAX_TEMPERATURE));
-    nextPos.y -= upwardForce * 20.f;
+    nextPos.y -= upwardForce * 10.f;
 
     // Check horizontal bounds
-    if      (nextPos.x - RADIUS <= 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
-    else if (nextPos.x + RADIUS >= WIDTH) {nextPos.x = WIDTH - RADIUS; onRightBoundHit();}
+    if      (nextPos.x - RADIUS < 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
+    else if (nextPos.x + RADIUS > WIDTH) {nextPos.x = WIDTH - RADIUS; onRightBoundHit();}
 
     // Check vertical bounds
-    if      (nextPos.y - RADIUS <= 0)      {nextPos.y = RADIUS; onTopBoundHit();}
-    else if (nextPos.y + RADIUS >= HEIGHT) {nextPos.y = HEIGHT - RADIUS; onBottomBoundHit(nextPos);}
+    if      (nextPos.y - RADIUS < 0)      {nextPos.y = RADIUS; onTopBoundHit();}
+    else if (nextPos.y + RADIUS > HEIGHT) {nextPos.y = HEIGHT - RADIUS; onBottomBoundHit(nextPos);}
 
     temperature *= COOL;
     acceleration = {};
@@ -48,9 +45,11 @@ struct VerletObject : sf::CircleShape {
     setFillColor(generateHeatColor());
   }
 
-  void checkCollision(VerletObject& rhs) {
+  void checkCollision(VerletObject* rhs) {
+    if (grabbed) return;
+
     sf::Vector2f pos1 = getPosition();
-    sf::Vector2f pos2 = rhs.getPosition();
+    sf::Vector2f pos2 = rhs->getPosition();
     float minDist = RADIUS * 2;
 
     sf::Vector2f v = pos1 - pos2;
@@ -65,11 +64,16 @@ struct VerletObject : sf::CircleShape {
       sf::Vector2f move = 0.5f * delta * n;
 
       setPosition(pos1 + move);
-      rhs.setPosition(pos2 - move);
-      transferTemperature(temperature, rhs.temperature);
+      rhs->setPosition(pos2 - move);
+      transferTemperature(temperature, rhs->temperature);
 
     } else if (distSquared == minDistSquared)
-      transferTemperature(temperature, rhs.temperature);
+      transferTemperature(temperature, rhs->temperature);
+  }
+
+  void setGrabPosition(sf::Vector2f pos) {
+    setPosition(pos);
+    positionPrevious = pos;
   }
 
   const float getTemperature() const {

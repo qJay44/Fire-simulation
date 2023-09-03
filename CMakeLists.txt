@@ -16,8 +16,9 @@ find_package(SFML 2.6.0 COMPONENTS system window graphics REQUIRED)
 include_directories(${MY_UTILS_PATH})
 
 add_executable(MyProject
-  ${SRC_DIR}main.cpp
+  ${SRC_DIR}utils/sfmlrectangle.cpp
   ${MY_UTILS_PATH}myutils.cpp
+  ${SRC_DIR}main.cpp
 )
 
 target_link_libraries(MyProject sfml-system sfml-window sfml-graphics)
