@@ -1,8 +1,8 @@
 #include "SFML/Window.hpp"
-#include "preferences.h"
-#include "quadtree.hpp"
+#include "SFML/Graphics.hpp"
+#include "Cell.hpp"
+#include <new>
 #include <stdlib.h>
-#include <vector>
 
 class App {
   sf::RenderWindow window;
@@ -13,18 +13,16 @@ class App {
   sf::Shader shader;
   sf::Text fpsText;
 
-  Rectangle* boundary;
-  QuadTree* qt;
-
-  std::vector<VerletObject> circles;
+  std::vector<Cell> grid;
+  std::map<int, VerletObject> circles;
   float dt;
 
   sf::RenderTexture backgroundTexture;
   sf::Sprite background;
 
-  bool showQT = false;
-  bool useShader = true;
-  bool showCollisionRectangle = false;
+  int lastId = 0;
+  bool useShader = false;
+  bool doOnce = true;
 
   void setupSFML() {
     // Setup main window
@@ -57,46 +55,96 @@ class App {
 
   void setupProgram() {
     srand((unsigned)time(NULL));
+    grid.resize(COLUMNS * ROWS);
+    grid.reserve(COLUMNS * ROWS);
 
-    boundary = new Rectangle{WIDTH / 2.f, HEIGHT / 2.f, WIDTH / 2.f, HEIGHT / 2.f};
-    qt = new QuadTree(*boundary);
+    auto ix = [] (int x, int y) {
+      return x + y * COLUMNS;
+    };
 
-    for (int i = 0; i < 500; i++) {
+    for (int x = 0; x < COLUMNS; x++) {
+      for (int y = 0; y < ROWS; y++) {
+        int index = x + y * COLUMNS;
+        Cell& cell = grid[index];
+
+        // Left cell
+        if (x > 0) {
+          cell.addNeighbour(WEST, &grid[ix(x - 1, y)]);
+
+          // Up-left cell
+          if (y > 0)
+            cell.addNeighbour(NORTH_WEST, &grid[ix(x - 1, y - 1)]);
+
+          // Down-left cell
+          if (y < ROWS - 1)
+            cell.addNeighbour(SOUTH_WEST, &grid[ix(x - 1, y + 1)]);
+        }
+
+        // Right cell
+        if (x < COLUMNS - 1) {
+          cell.addNeighbour(EAST, &grid[ix(x + 1, y)]);
+
+          // Up-right cell
+          if (y > 0)
+            cell.addNeighbour(NORTH_EAST, &grid[ix(x + 1, y - 1)]);
+
+          // Down-right cell
+          if (y < ROWS - 1)
+            cell.addNeighbour(SOUTH_EAST, &grid[ix(x + 1, y + 1)]);
+        }
+
+        // Up cell
+        if (y > 0)
+          cell.addNeighbour(NORTH, &grid[ix(x, y - 1)]);
+
+        // Down cell
+        if (y < ROWS - 1)
+          cell.addNeighbour(SOUTH, &grid[ix(x, y + 1)]);
+      }
+    }
+
+    for (int i = 0; i < 10; i++) {
+      int x = random(WIDTH);
+      int y = random(HEIGHT);
+
       sf::Vector2f pos{
-        static_cast<float>(random(WIDTH)),
-        static_cast<float>(random(HEIGHT))
+        static_cast<float>(x),
+        static_cast<float>(y)
       };
-      addCircle(VerletObject(pos, pos));
+
+      VerletObject circle(pos, pos);
+      addCircle(circle);
     }
   }
 
   void addCircle(VerletObject vo) {
-    circles.push_back(vo);
+    circles.insert(std::pair(lastId++, vo));
+  }
+
+  void getIndex(int x, int y) {
+
   }
 
   void updatePosition() {
-    for (VerletObject& vo : circles)
-      vo.updatePosition(dt);
+    for (auto& [_, circle] : circles)
+      circle.updatePosition(dt);
   }
 
   void solveCollisions() {
-    delete qt;
-    qt = new QuadTree(*boundary);
+    for (Cell& cell : grid)
+      cell.container.clear();
 
-    // Generate new quad tree
-    for (VerletObject& vo : circles)
-      qt->insert(vo);
+    for (auto& [id, circle] : circles) {
+      sf::Vector2f pos = circle.getPosition();
+      int x = std::clamp(static_cast<int>(pos.x), 1, WIDTH - 1);
+      int y = std::clamp(static_cast<int>(pos.y), 1, HEIGHT - 1);
 
-    // Query quad tree for each circle then check collisions
-    for (VerletObject& vo1: circles) {
-      std::vector<VerletObject*> nearCircles;
-      sf::Vector2f pos = vo1.getPosition();
-
-      qt->query(nearCircles, Rectangle{pos.x, pos.y, RADIUS * 2, RADIUS * 2});
-
-      for (VerletObject* vo2 : nearCircles)
-        vo1.checkCollision(*vo2);
+      // FIXME: Wrong index calculation
+      grid[IX(x, y)].container.push_back(id);
     }
+
+    for (Cell& cell : grid)
+      cell.checkCollisions(circles);
   }
 
   void update() {
@@ -106,39 +154,14 @@ class App {
 
   void draw() {
     // Draw all circles on texture
-    for (int i = 0; i < circles.size(); i++)
-      backgroundTexture.draw(circles[i]);
+    for (const auto& [_, cicle] : circles)
+      backgroundTexture.draw(cicle);
 
     // Draw texture on screen
     if (useShader)
       window.draw(background, &shader);
     else
       window.draw(background);
-
-    // Show quad tree grid
-    if (showQT)
-      qt->show(window);
-
-    if (showCollisionRectangle) {
-      float size = RADIUS * 2 + 20;
-      std::vector<VerletObject*> nearCircles;
-      qt->query(nearCircles, Rectangle{mouseCurr.x, mouseCurr.y, size, size});
-
-      sf::RectangleShape rect({size * 2, size * 2});
-      rect.setPosition(mouseCurr.x - size, mouseCurr.y - size);
-      rect.setFillColor(sf::Color::Transparent);
-      rect.setOutlineColor(sf::Color::Magenta);
-      rect.setOutlineThickness(1.f);
-
-      for (VerletObject* circle : nearCircles) {
-        sf::Color origColor = circle->getFillColor();
-        circle->setFillColor(sf::Color::Magenta);
-        window.draw(*circle);
-        circle->setFillColor(origColor);
-      }
-
-      window.draw(rect);
-    }
 
     // Show FPS
     int fps = static_cast<int>((1.f / dt));
@@ -149,10 +172,7 @@ class App {
   public:
     App() {}
 
-    ~App() {
-      delete boundary;
-      delete qt;
-    }
+    ~App() {}
 
     void setup() {
       setupSFML();
@@ -171,14 +191,8 @@ class App {
               case sf::Keyboard::Key::Q:
                 window.close();
                 break;
-              case sf::Keyboard::Key::T:
-                showQT = !showQT;
-                break;
               case sf::Keyboard::Key::S:
                 useShader = !useShader;
-                break;
-              case sf::Keyboard::Key::C:
-                showCollisionRectangle = !showCollisionRectangle;
                 break;
               default:
                 break;

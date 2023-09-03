@@ -4,8 +4,13 @@
 #include "preferences.h"
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 struct VerletObject : sf::CircleShape {
+
+  VerletObject() {
+    throw std::runtime_error("test");
+  }
 
   VerletObject(sf::Vector2f posPrev, sf::Vector2f posCurr) : positionPrevious(posPrev) {
     setRadius(RADIUS);
@@ -24,7 +29,9 @@ struct VerletObject : sf::CircleShape {
     nextPos = currPos + velocity;
     nextPos.y += acceleration * dt * dt;
 
-    nextPos.y -= 10.f * temperature / MAX_TEMPERATURE * dt;
+    /* nextPos.y -= 30.f * temperature / MAX_TEMPERATURE * dt; */
+    int upwardForce = floor(pow(100, temperature - MAX_TEMPERATURE));
+    nextPos.y -= upwardForce * 20.f;
 
     // Check horizontal bounds
     if      (nextPos.x - RADIUS <= 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
@@ -42,25 +49,26 @@ struct VerletObject : sf::CircleShape {
   }
 
   void checkCollision(VerletObject& rhs) {
-    if (this == &rhs) return;
-
     sf::Vector2f pos1 = getPosition();
     sf::Vector2f pos2 = rhs.getPosition();
     float minDist = RADIUS * 2;
 
-    sf::Vector2f collisionAxis = {pos1.x - pos2.x, pos1.y - pos2.y};
-    float dist = sqrt(collisionAxis.x * collisionAxis.x + collisionAxis.y * collisionAxis.y);
+    sf::Vector2f v = pos1 - pos2;
+    float distSquared = v.x * v.x + v.y * v.y;
+    float minDistSquared = minDist * minDist;
 
-    if (dist < minDist) {
+    if (distSquared < minDistSquared) {
+      float dist = sqrt(distSquared);
+      dist = std::clamp(dist, 0.001f, RADIUS * 2.f);
+      float delta = minDist - dist;
+      sf::Vector2f n = v / dist;
+      sf::Vector2f move = 0.5f * delta * n;
+
+      setPosition(pos1 + move);
+      rhs.setPosition(pos2 - move);
       transferTemperature(temperature, rhs.temperature);
 
-      sf::Vector2f n = collisionAxis / dist;
-      float delta = minDist - dist;
-
-      setPosition(pos1 + (0.5f * delta * n));
-      rhs.setPosition(pos2 - (0.5f * delta * n));
-
-    } else if (dist == minDist)
+    } else if (distSquared == minDistSquared)
       transferTemperature(temperature, rhs.temperature);
   }
 
@@ -71,10 +79,8 @@ struct VerletObject : sf::CircleShape {
   private:
     sf::Vector2f positionPrevious;
     float acceleration = 0.f;
-    float temperature = 1000.f;
+    float temperature = 2000.f;
 
-    // TODO: Make exchange value based on the temperature difference
-    // (Higher temperature transfers bigger value to other object)
     static void transferTemperature(float& t1, float& t2) {
       if (t1 > t2) {
         t2 += t1 * EXCHANGE_VALUE;
