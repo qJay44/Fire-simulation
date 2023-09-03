@@ -2,9 +2,8 @@
 #include "SFML/Graphics.hpp"
 #include "myutils.hpp"
 #include "preferences.h"
-#include <algorithm>
+#include "utils/config.h"
 #include <cmath>
-#include <stdexcept>
 
 struct VerletObject : sf::CircleShape {
   bool grabbed = false;
@@ -17,7 +16,7 @@ struct VerletObject : sf::CircleShape {
 
   void updatePosition(float dt) {
     if (grabbed) return;
-    acceleration += GRAVITY;
+    acceleration += config::gravity;
 
     sf::Vector2f currPos = getPosition();
     sf::Vector2f velocity = currPos - positionPrevious;
@@ -26,9 +25,7 @@ struct VerletObject : sf::CircleShape {
     positionPrevious = currPos;
     nextPos = currPos + velocity;
     nextPos.y += acceleration * dt * dt;
-
-    int upwardForce = floor(pow(100, temperature - MAX_TEMPERATURE));
-    nextPos.y -= upwardForce * 10.f;
+    nextPos.y -= upwardForce();
 
     // Check horizontal bounds
     if      (nextPos.x - RADIUS < 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
@@ -38,7 +35,7 @@ struct VerletObject : sf::CircleShape {
     if      (nextPos.y - RADIUS < 0)      {nextPos.y = RADIUS; onTopBoundHit();}
     else if (nextPos.y + RADIUS > HEIGHT) {nextPos.y = HEIGHT - RADIUS; onBottomBoundHit(nextPos);}
 
-    temperature *= COOL;
+    temperature *= config::cooling;
     acceleration = {};
 
     setPosition(nextPos);
@@ -58,7 +55,7 @@ struct VerletObject : sf::CircleShape {
 
     if (distSquared < minDistSquared) {
       float dist = sqrt(distSquared);
-      dist = std::clamp(dist, 0.001f, RADIUS * 2.f);
+      dist = std::clamp(dist, 0.1f, RADIUS * 2.f);
       float delta = minDist - dist;
       sf::Vector2f n = v / dist;
       sf::Vector2f move = 0.5f * delta * n;
@@ -83,16 +80,20 @@ struct VerletObject : sf::CircleShape {
   private:
     sf::Vector2f positionPrevious;
     float acceleration = 0.f;
-    float temperature = 2000.f;
+    float temperature = 10000.f;
 
     static void transferTemperature(float& t1, float& t2) {
       if (t1 > t2) {
-        t2 += t1 * EXCHANGE_VALUE;
-        t1 -= t1 * EXCHANGE_VALUE;
+        t2 += t1 * config::heatTransferFactor;
+        t1 -= t1 * config::heatTransferFactor;
       } else {
-        t1 += t2 * EXCHANGE_VALUE;
-        t2 -= t2 * EXCHANGE_VALUE;
+        t1 += t2 * config::heatTransferFactor;
+        t2 -= t2 * config::heatTransferFactor;
       }
+    }
+
+    inline float upwardForce()  {
+      return pow(100, temperature / MAX_TEMPERATURE + 1.f) / HEIGHT * 0.003f;
     }
 
     void onTopBoundHit() {}
@@ -100,8 +101,8 @@ struct VerletObject : sf::CircleShape {
     void onLeftBoundHit() {}
 
     void onBottomBoundHit(sf::Vector2f& pos) {
-      temperature = std::clamp(temperature * HEAT, 0.f, MAX_TEMPERATURE);
-      temperature *= HEAT - temperature / MAX_TEMPERATURE;
+      temperature = std::clamp(temperature * config::heating, 0.f, MAX_TEMPERATURE);
+      temperature *= config::heating - temperature / MAX_TEMPERATURE;
     }
 
     // Use it after raduis set

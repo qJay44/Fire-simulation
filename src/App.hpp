@@ -1,6 +1,8 @@
 #include "SFML/Window.hpp"
 #include "Cell.hpp"
 #include "utils/sfmlrectangle.h"
+#include "imgui.h"
+#include "imgui-SFML.h"
 
 class App {
   sf::RenderWindow window;
@@ -18,15 +20,20 @@ class App {
   sf::RenderTexture backgroundTexture;
   sf::Sprite background;
 
+  bool doOnce = true;
   bool useShader = false;
   bool showGrid = false;
-  bool highlightCircleCells = false;
+  bool highlightCircleCell = false;
+  bool highlightCircleNeighbourCells = false;
   VerletObject* grabbedCircle = nullptr;
 
   void setupSFML() {
     // Setup main window
     window.create(sf::VideoMode(WIDTH, HEIGHT), "Template text", sf::Style::Close);
     window.setFramerateLimit(75);
+
+    if (!ImGui::SFML::Init(window))
+      throw std::runtime_error("ImGui initialize fail");
 
     // Font for some test text
     genericFont.loadFromFile("../../src/fonts/Minecraft rus.ttf");
@@ -127,7 +134,7 @@ class App {
     circles.push_back(circle);
   }
 
-  void updatePosition() {
+  void updatePosition(float dt) {
     for (VerletObject& circle : circles)
       circle.updatePosition(dt);
   }
@@ -152,13 +159,16 @@ class App {
   }
 
   void update() {
-    solveCollisions();
-    updatePosition();
+    float subDt = dt / static_cast<float>(SUB_STEPS);
+    for (int i = SUB_STEPS; i--;) {
+      solveCollisions();
+      updatePosition(subDt);
+    }
   }
 
   void draw() {
     // Draw all circles on texture
-    for (VerletObject& circle : circles)
+    for (const VerletObject& circle : circles)
       backgroundTexture.draw(circle);
 
     // Draw texture on screen
@@ -177,38 +187,63 @@ class App {
       }
     }
 
-    if (highlightCircleCells) {
+    if (highlightCircleCell) {
       auto drawAlongY = [this] (sf::Vector2i& pos, int y) {
         for (int dy = -1; dy <= 1; dy++) {
           pos.y = (y + dy) * CELL_SIZE;
-          sf::RectangleShape rectL = createOutlineRectangle(CELL_SIZE, pos, sf::Color::Magenta);
+          sf::RectangleShape rectL = createOutlineRectangle(CELL_SIZE, pos, sf::Color::Yellow);
           window.draw(rectL);
         }
       };
-
-      for (int x = 0; x < COLUMNS; x++) {
-        for (int y = 0; y < ROWS; y++) {
+      for (int x = 0; x < COLUMNS; x++)
+        for (int y = 0; y < ROWS; y++)
           if (grid[x + y * COLUMNS].container.size() > 0) {
-            // Draw center
-            sf::Vector2i pos{x * CELL_SIZE, y * CELL_SIZE};
-            drawAlongY(pos, y);
+            if (highlightCircleNeighbourCells) {
+              // Draw center
+              sf::Vector2i pos{x * CELL_SIZE, y * CELL_SIZE};
+              drawAlongY(pos, y);
 
-            // Draw left side
-            pos.x = (x - 1) * CELL_SIZE;
-            drawAlongY(pos, y);
+              // Draw left side
+              pos.x = (x - 1) * CELL_SIZE;
+              drawAlongY(pos, y);
 
-            // Draw right side
-            pos.x = (x + 1) * CELL_SIZE;
-            drawAlongY(pos, y);
+              // Draw right side
+              pos.x = (x + 1) * CELL_SIZE;
+              drawAlongY(pos, y);
+            } else {
+              sf::Vector2i pos{x * CELL_SIZE, y * CELL_SIZE};
+              sf::RectangleShape rect = createOutlineRectangle(CELL_SIZE, pos, sf::Color::Magenta);
+              window.draw(rect);
+            }
           }
-        }
-      }
     }
 
     // Show FPS
     int fps = static_cast<int>((1.f / dt));
     fpsText.setString(std::to_string(fps));
     window.draw(fpsText);
+  }
+
+  void drawImGui(sf::Time deltaTime) {
+    ImGui::SFML::Update(window, deltaTime);
+
+    if (doOnce) {
+      ImGui::SetNextWindowPos({ 0, 0 });
+      ImGui::SetNextWindowCollapsed(true);
+      doOnce = false;
+    }
+
+    ImGui::Begin("Settings");
+    ImGui::SliderFloat("Heat transfer", &config::heatTransferFactor, 0.01f, 1.f);
+    ImGui::SliderFloat("Heat", &config::heating, 1.1f, 3.f);
+    ImGui::SliderFloat("Cool", &config::cooling, 0.9f, 1.f);
+    ImGui::SliderFloat("Gravity", &config::gravity, 20.f, 1000.f);
+
+    if (ImGui::Button("Reset")) {
+      config::reset();
+    }
+
+    ImGui::End();
   }
 
   public:
@@ -222,9 +257,17 @@ class App {
     }
 
     void run() {
+      auto onImGui = [] () {
+        return ImGui::IsAnyItemHovered() ||
+               ImGui::IsWindowHovered(ImGuiFocusedFlags_AnyWindow) ||
+               ImGui::IsAnyItemActive();
+      };
+
       while (window.isOpen()) {
         sf::Event event;
         while (window.pollEvent(event)) {
+          ImGui::SFML::ProcessEvent(event);
+
           if (event.type == sf::Event::Closed)
             window.close();
 
@@ -236,11 +279,14 @@ class App {
               case sf::Keyboard::Key::C:
                 useShader = !useShader;
                 break;
-              case sf::Keyboard::Key::G:
+              case sf::Keyboard::Key::Num1:
                 showGrid = !showGrid;
                 break;
-              case sf::Keyboard::Key::H:
-                highlightCircleCells = !highlightCircleCells;
+              case sf::Keyboard::Key::Num2:
+                highlightCircleCell = !highlightCircleCell;
+                break;
+              case sf::Keyboard::Key::Num3:
+                highlightCircleNeighbourCells = !highlightCircleNeighbourCells;
                 break;
               default:
                 break;
@@ -253,7 +299,7 @@ class App {
               static_cast<float>(sf::Mouse::getPosition(window).x),
               static_cast<float>(sf::Mouse::getPosition(window).y)
             };
-            if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
+            if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && !onImGui())
               addCircle(VerletObject(mousePrev, mouseCurr));
 
             mousePrev = mouseCurr;
@@ -276,7 +322,7 @@ class App {
 
           if (event.type == sf::Event::MouseButtonReleased) {
             // Add circle (while not moving)
-            if (event.mouseButton.button == sf::Mouse::Left)
+            if (event.mouseButton.button == sf::Mouse::Left && !onImGui())
               addCircle(VerletObject(mousePrev, mouseCurr));
 
             // Leave grabbed circle
@@ -289,14 +335,17 @@ class App {
           }
         }
 
-        dt = clock.restart().asSeconds();
+        sf::Time deltaTime = clock.restart();
+        dt = deltaTime.asSeconds();
         update();
 
         backgroundTexture.clear();
         window.clear(sf::Color::Transparent);
 
         draw();
+        drawImGui(deltaTime);
 
+        ImGui::SFML::Render(window);
         window.display();
       }
     }
