@@ -3,7 +3,6 @@
 #define HEIGHT 720
 #define RADIUS 5
 #define SUB_STEPS 3
-#define MAX_TEMPERATURE 10000.f
 
 // Grid config
 #define CELL_SIZE (RADIUS * 2)

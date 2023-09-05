@@ -234,14 +234,19 @@ class App {
     }
 
     ImGui::Begin("Settings");
-    ImGui::SliderFloat("Heat transfer", &config::heatTransferFactor, 0.01f, 1.f);
-    ImGui::SliderFloat("Heat", &config::heating, 1.1f, 3.f);
-    ImGui::SliderFloat("Cool", &config::cooling, 0.9f, 1.f);
     ImGui::SliderFloat("Gravity", &config::gravity, 20.f, 1000.f);
 
-    if (ImGui::Button("Reset")) {
+    ImGui::Text("Temperature");
+    ImGui::SliderFloat("Heat transfer", &config::temperature::heatTransferFactor, 0.001f, 1.f);
+    ImGui::SliderFloat("Heat", &config::temperature::heating, 1.1f, 3.f);
+    ImGui::SliderFloat("Cool", &config::temperature::cooling, 0.7f, 1.f);
+
+    ImGui::Text("Upward force");
+    ImGui::SliderFloat("Min temperature", &config::upwardForce::minTemperature, 2000.f, config::temperature::max);
+    ImGui::SliderFloat("Scale", &config::upwardForce::scale, 0.05f, 0.1f);
+
+    if (ImGui::Button("Reset"))
       config::reset();
-    }
 
     ImGui::End();
   }
@@ -340,7 +345,7 @@ class App {
         update();
 
         backgroundTexture.clear();
-        window.clear(sf::Color::Transparent);
+        window.clear(sf::Color::Black);
 
         draw();
         drawImGui(deltaTime);

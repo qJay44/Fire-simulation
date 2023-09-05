@@ -25,7 +25,7 @@ struct VerletObject : sf::CircleShape {
     positionPrevious = currPos;
     nextPos = currPos + velocity;
     nextPos.y += acceleration * dt * dt;
-    nextPos.y -= upwardForce();
+    nextPos.y -= config::upwardForce::calculate(temperature) * dt;
 
     // Check horizontal bounds
     if      (nextPos.x - RADIUS < 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
@@ -35,8 +35,8 @@ struct VerletObject : sf::CircleShape {
     if      (nextPos.y - RADIUS < 0)      {nextPos.y = RADIUS; onTopBoundHit();}
     else if (nextPos.y + RADIUS > HEIGHT) {nextPos.y = HEIGHT - RADIUS; onBottomBoundHit(nextPos);}
 
-    temperature *= config::cooling;
     acceleration = {};
+    config::temperature::cool(temperature);
 
     setPosition(nextPos);
     setFillColor(generateHeatColor());
@@ -62,10 +62,10 @@ struct VerletObject : sf::CircleShape {
 
       setPosition(pos1 + move);
       rhs->setPosition(pos2 - move);
-      transferTemperature(temperature, rhs->temperature);
+      config::temperature::transfer(temperature, rhs->temperature);
 
     } else if (distSquared == minDistSquared)
-      transferTemperature(temperature, rhs->temperature);
+      config::temperature::transfer(temperature, rhs->temperature);
   }
 
   void setGrabPosition(sf::Vector2f pos) {
@@ -82,27 +82,12 @@ struct VerletObject : sf::CircleShape {
     float acceleration = 0.f;
     float temperature = 10000.f;
 
-    static void transferTemperature(float& t1, float& t2) {
-      if (t1 > t2) {
-        t2 += t1 * config::heatTransferFactor;
-        t1 -= t1 * config::heatTransferFactor;
-      } else {
-        t1 += t2 * config::heatTransferFactor;
-        t2 -= t2 * config::heatTransferFactor;
-      }
-    }
-
-    inline float upwardForce()  {
-      return pow(100, temperature / MAX_TEMPERATURE + 1.f) / HEIGHT * 0.003f;
-    }
-
     void onTopBoundHit() {}
     void onRightBoundHit() {}
     void onLeftBoundHit() {}
 
     void onBottomBoundHit(sf::Vector2f& pos) {
-      temperature = std::clamp(temperature * config::heating, 0.f, MAX_TEMPERATURE);
-      temperature *= config::heating - temperature / MAX_TEMPERATURE;
+      config::temperature::heat(temperature);
     }
 
     // Use it after raduis set
@@ -116,7 +101,7 @@ struct VerletObject : sf::CircleShape {
 
     sf::Color generateHeatColor() {
       sf::Color col;
-      float t = temperature / MAX_TEMPERATURE * 3 * 256;
+      float t = temperature / config::temperature::max * 3 * 256;
 
       col.r = std::clamp(t, 0.f, 255.f);
       col.g = std::clamp(t - col.r, 0.f, 255.f);
