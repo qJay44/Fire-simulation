@@ -25,6 +25,7 @@ class App {
   bool showGrid = false;
   bool highlightCircleCell = false;
   bool highlightCircleNeighbourCells = false;
+  bool showTemperatureInfo = false;
   VerletObject* grabbedCircle = nullptr;
 
   void setupSFML() {
@@ -116,7 +117,7 @@ class App {
     }
 
     // Spawn initial circles
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 3000; i++) {
       int x = random(WIDTH);
       int y = random(HEIGHT);
 
@@ -132,6 +133,17 @@ class App {
 
   void addCircle(VerletObject circle) {
     circles.push_back(circle);
+  }
+
+  void createFlame() {
+    int flameStart = (COLUMNS - FLAME_WIDTH) / 2.f;
+
+    for (int x = flameStart; x < flameStart + FLAME_WIDTH; x++)
+      for (int y = 0; y < ROWS; y++) {
+        const std::vector<VerletObject*>& cs = grid[x + y * COLUMNS].container;
+        for (VerletObject* c : cs)
+          c->toss();
+      }
   }
 
   void updatePosition(float dt) {
@@ -162,6 +174,7 @@ class App {
     float subDt = dt / static_cast<float>(SUB_STEPS);
     for (int i = SUB_STEPS; i--;) {
       solveCollisions();
+      createFlame();
       updatePosition(subDt);
     }
   }
@@ -217,7 +230,6 @@ class App {
             }
           }
     }
-
     // Show FPS
     int fps = static_cast<int>((1.f / dt));
     fpsText.setString(std::to_string(fps));
@@ -237,13 +249,12 @@ class App {
     ImGui::SliderFloat("Gravity", &config::gravity, 20.f, 1000.f);
 
     ImGui::Text("Temperature");
-    ImGui::SliderFloat("Heat transfer", &config::temperature::heatTransferFactor, 0.001f, 1.f);
-    ImGui::SliderFloat("Heat", &config::temperature::heating, 1.1f, 3.f);
-    ImGui::SliderFloat("Cool", &config::temperature::cooling, 0.7f, 1.f);
+    ImGui::SliderFloat("Heat transfer", &config::temperature::heatTransferFactor, 0.00001f, 0.1f);
+    ImGui::SliderFloat("Heating factor", &config::temperature::heatingFactor, 0.1f, 100.f);
+    ImGui::SliderFloat("Cooling factor", &config::temperature::coolingFactor, 0.1f, 100.f);
 
     ImGui::Text("Upward force");
-    ImGui::SliderFloat("Min temperature", &config::upwardForce::minTemperature, 2000.f, config::temperature::max);
-    ImGui::SliderFloat("Scale", &config::upwardForce::scale, 0.05f, 0.1f);
+    ImGui::SliderFloat("Scale", &config::upwardForce::scale, 0.f, 10.f);
 
     if (ImGui::Button("Reset"))
       config::reset();

@@ -3,7 +3,7 @@ namespace config {
 
   namespace temperature {
     extern const float max;
-    extern float heatTransferFactor, heating, cooling;
+    extern float heatTransferFactor, heatingFactor, coolingFactor;
 
     void cool(float& t);
     void heat(float& t);

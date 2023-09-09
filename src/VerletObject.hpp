@@ -25,7 +25,6 @@ struct VerletObject : sf::CircleShape {
     positionPrevious = currPos;
     nextPos = currPos + velocity;
     nextPos.y += acceleration * dt * dt;
-    nextPos.y -= config::upwardForce::calculate(temperature) * dt;
 
     // Check horizontal bounds
     if      (nextPos.x - RADIUS < 0)     {nextPos.x = RADIUS; onLeftBoundHit();}
@@ -68,6 +67,12 @@ struct VerletObject : sf::CircleShape {
       config::temperature::transfer(temperature, rhs->temperature);
   }
 
+  void toss() {
+    sf::Vector2f currPos = getPosition();
+    currPos.y -= config::upwardForce::calculate(temperature);
+    setPosition(currPos);
+  }
+
   void setGrabPosition(sf::Vector2f pos) {
     setPosition(pos);
     positionPrevious = pos;
@@ -80,7 +85,7 @@ struct VerletObject : sf::CircleShape {
   private:
     sf::Vector2f positionPrevious;
     float acceleration = 0.f;
-    float temperature = 10000.f;
+    float temperature = 2000.f;
 
     void onTopBoundHit() {}
     void onRightBoundHit() {}

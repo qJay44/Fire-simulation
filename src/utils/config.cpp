@@ -1,26 +1,33 @@
 #include "config.h"
+#include "../preferences.h"
+#include <algorithm>
 
 namespace config {
   float gravity = 400.f;
 
   namespace temperature {
-    const float max = 10000.f;
-    float heatTransferFactor = 0.03f;
-    float heating = 2.2f;
-    float cooling = 0.995f;
+    const float min = 0.f;
+    const float max = 5000.f;
+    const float vary = (max * 10.f) / max;
 
+    float heatingFactor = 19.679f;
+    float coolingFactor = 0.36f;
+    float heatTransferFactor = 0.006f;
+
+    // Private
     namespace {
       void clamp(float& t) {
-        t = t - (t - max);
+        t = std::clamp(t, min, max);
       }
     }
 
     void cool(float& t) {
-      t *= cooling;
+      t -= vary * coolingFactor;
+      clamp(t);
     }
 
     void heat(float& t) {
-      t *= heating;
+      t += vary * heatingFactor;
       clamp(t);
     }
 
@@ -38,28 +45,21 @@ namespace config {
   }
 
   namespace upwardForce {
-    float minTemperature = 8000.f;
-    float scale = 0.05f;
+    float scale = 6.f;
 
     float calculate(const float& t)  {
-      if (t > minTemperature) {
-        float f = (t - minTemperature) / (temperature::max * 0.01f);
-        return f * f * config::upwardForce::scale;
-      }
-
-      return 0.f;
+      return (t * t * scale * 0.001f) / (temperature::max * 290.f);
     }
   }
 
   void reset() {
    gravity = 400.f;
 
-   temperature::heatTransferFactor = 0.03f;
-   temperature::heating = 2.2f;
-   temperature::cooling = 0.995f;
+   temperature::heatingFactor = 19.679f;
+   temperature::coolingFactor = 0.36f;
+   temperature::heatTransferFactor = 0.006f;
 
-   upwardForce::scale = 0.01f;
-   upwardForce::minTemperature = 8000.f;
+   upwardForce::scale = 6.f;
   }
 };
 
