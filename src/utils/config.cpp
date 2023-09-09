@@ -12,7 +12,7 @@ namespace config {
 
     float heatingFactor = 19.679f;
     float coolingFactor = 0.36f;
-    float heatTransferFactor = 0.006f;
+    float heatTransferFactor = 0.01f;
 
     // Private
     namespace {
@@ -57,7 +57,7 @@ namespace config {
 
    temperature::heatingFactor = 19.679f;
    temperature::coolingFactor = 0.36f;
-   temperature::heatTransferFactor = 0.006f;
+   temperature::heatTransferFactor = 0.01f;
 
    upwardForce::scale = 6.f;
   }

@@ -1,5 +1,5 @@
 #include "SFML/Window.hpp"
-#include "Cell.hpp"
+#include "Flame.hpp"
 #include "utils/sfmlrectangle.h"
 #include "imgui.h"
 #include "imgui-SFML.h"
@@ -15,6 +15,7 @@ class App {
 
   std::vector<Cell> grid;
   std::vector<VerletObject> circles;
+  std::vector<Flame> flames;
   float dt;
 
   sf::RenderTexture backgroundTexture;
@@ -22,10 +23,7 @@ class App {
 
   bool doOnce = true;
   bool useShader = false;
-  bool showGrid = false;
   bool highlightCircleCell = false;
-  bool highlightCircleNeighbourCells = false;
-  bool showTemperatureInfo = false;
   VerletObject* grabbedCircle = nullptr;
 
   void setupSFML() {
@@ -64,6 +62,7 @@ class App {
     srand((unsigned)time(NULL));
     grid.resize(COLUMNS * ROWS);
     grid.reserve(COLUMNS * ROWS);
+    flames.reserve(FLAME_COUNT);
 
     // Probably better to create this than modifying IX macro
     // since its need more to calculate and do it all the time
@@ -75,7 +74,15 @@ class App {
     // Setup all cells with its neighbours
     for (int x = 0; x < COLUMNS; x++) {
       for (int y = 0; y < ROWS; y++) {
-        std::vector<Cell*>& cellNeighbours = grid[ix(x, y)].neighbours;
+        Cell& cell = grid[ix(x, y)];
+        cell.setPosition(x * CELL_SIZE, y * CELL_SIZE);
+        cell.setSize({CELL_SIZE, CELL_SIZE});
+        cell.setFillColor(sf::Color::Transparent);
+        cell.setOutlineThickness(1.f);
+        std::vector<Cell*>& cellNeighbours = cell.neighbours;
+
+        // Center
+        cellNeighbours.push_back(&cell);
 
         // Left cell
         if (x > 0) {
@@ -110,9 +117,6 @@ class App {
         // Down cell
         if (y < ROWS - 1)
           cellNeighbours.push_back(&grid[ix(x, y + 1)]);
-
-        // Center
-        cellNeighbours.push_back(&grid[ix(x, y)]);
       }
     }
 
@@ -135,15 +139,15 @@ class App {
     circles.push_back(circle);
   }
 
-  void createFlame() {
-    int flameStart = (COLUMNS - FLAME_WIDTH) / 2.f;
+  void updateFlames() {
+    for (int i = flames.size(); i < FLAME_COUNT; i++) {
+      int flameStart = random(COLUMNS - FLAME_WIDTH);
+      flames.push_back(Flame(grid, flameStart));
+    }
 
-    for (int x = flameStart; x < flameStart + FLAME_WIDTH; x++)
-      for (int y = 0; y < ROWS; y++) {
-        const std::vector<VerletObject*>& cs = grid[x + y * COLUMNS].container;
-        for (VerletObject* c : cs)
-          c->toss();
-      }
+    for (int i = 0; i < flames.size(); i++)
+      if (flames[i].execute() > FLAME_MAX_LIFETIME)
+        flames.erase(flames.begin() + i);
   }
 
   void updatePosition(float dt) {
@@ -174,8 +178,8 @@ class App {
     float subDt = dt / static_cast<float>(SUB_STEPS);
     for (int i = SUB_STEPS; i--;) {
       solveCollisions();
-      createFlame();
       updatePosition(subDt);
+      updateFlames();
     }
   }
 
@@ -190,45 +194,11 @@ class App {
     else
       window.draw(background);
 
-    if (showGrid) {
-      for (int x = 0; x < COLUMNS; x++) {
-        for (int y = 0; y < ROWS; y++) {
-          sf::Vector2i pos{x * CELL_SIZE,  y * CELL_SIZE};
-          sf::RectangleShape rect = createOutlineRectangle(CELL_SIZE, pos);
-          window.draw(rect);
-        }
-      }
-    }
-
     if (highlightCircleCell) {
-      auto drawAlongY = [this] (sf::Vector2i& pos, int y) {
-        for (int dy = -1; dy <= 1; dy++) {
-          pos.y = (y + dy) * CELL_SIZE;
-          sf::RectangleShape rectL = createOutlineRectangle(CELL_SIZE, pos, sf::Color::Yellow);
-          window.draw(rectL);
-        }
-      };
-      for (int x = 0; x < COLUMNS; x++)
-        for (int y = 0; y < ROWS; y++)
-          if (grid[x + y * COLUMNS].container.size() > 0) {
-            if (highlightCircleNeighbourCells) {
-              // Draw center
-              sf::Vector2i pos{x * CELL_SIZE, y * CELL_SIZE};
-              drawAlongY(pos, y);
-
-              // Draw left side
-              pos.x = (x - 1) * CELL_SIZE;
-              drawAlongY(pos, y);
-
-              // Draw right side
-              pos.x = (x + 1) * CELL_SIZE;
-              drawAlongY(pos, y);
-            } else {
-              sf::Vector2i pos{x * CELL_SIZE, y * CELL_SIZE};
-              sf::RectangleShape rect = createOutlineRectangle(CELL_SIZE, pos, sf::Color::Magenta);
-              window.draw(rect);
-            }
-          }
+      for (Cell& cell : grid) {
+        cell.highlight(sf::Color::Magenta);
+        window.draw(cell);
+      }
     }
     // Show FPS
     int fps = static_cast<int>((1.f / dt));
@@ -249,7 +219,7 @@ class App {
     ImGui::SliderFloat("Gravity", &config::gravity, 20.f, 1000.f);
 
     ImGui::Text("Temperature");
-    ImGui::SliderFloat("Heat transfer", &config::temperature::heatTransferFactor, 0.00001f, 0.1f);
+    ImGui::SliderFloat("Heat transfer", &config::temperature::heatTransferFactor, 0.001f, 0.1f);
     ImGui::SliderFloat("Heating factor", &config::temperature::heatingFactor, 0.1f, 100.f);
     ImGui::SliderFloat("Cooling factor", &config::temperature::coolingFactor, 0.1f, 100.f);
 
@@ -295,14 +265,8 @@ class App {
               case sf::Keyboard::Key::C:
                 useShader = !useShader;
                 break;
-              case sf::Keyboard::Key::Num1:
-                showGrid = !showGrid;
-                break;
-              case sf::Keyboard::Key::Num2:
+              case sf::Keyboard::Key::H:
                 highlightCircleCell = !highlightCircleCell;
-                break;
-              case sf::Keyboard::Key::Num3:
-                highlightCircleNeighbourCells = !highlightCircleNeighbourCells;
                 break;
               default:
                 break;
