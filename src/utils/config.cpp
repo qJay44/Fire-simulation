@@ -52,6 +52,10 @@ namespace config {
     }
   }
 
+  namespace shader {
+    int bloomIntensity = 50;
+  }
+
   void reset() {
    gravity = 400.f;
 

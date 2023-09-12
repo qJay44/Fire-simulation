@@ -19,17 +19,18 @@ class App {
   float dt;
 
   sf::RenderTexture backgroundTexture;
-  sf::Sprite background;
+  sf::Sprite backgroundSprite;
 
   bool doOnce = true;
-  bool useShader = false;
+  bool useShader = true;
   bool highlightCircleCell = false;
+  bool showFps = true;
   VerletObject* grabbedCircle = nullptr;
 
   void setupSFML() {
     // Setup main window
     window.create(sf::VideoMode(WIDTH, HEIGHT), "Template text", sf::Style::Close);
-    window.setFramerateLimit(75);
+    window.setFramerateLimit(90);
 
     if (!ImGui::SFML::Init(window))
       throw std::runtime_error("ImGui initialize fail");
@@ -39,15 +40,12 @@ class App {
 
     // Main canvas setup
     backgroundTexture.create(WIDTH, HEIGHT);
-    background.setTexture(backgroundTexture.getTexture());
+    backgroundSprite.setTexture(backgroundTexture.getTexture());
     backgroundTexture.display();
 
     // Shader setup
     shader.loadFromFile("../../src/shaders/circle.frag", sf::Shader::Fragment);
     shader.setUniform("texture", backgroundTexture.getTexture());
-    shader.setUniform("blurRadius", BLUR_RADIUS);
-    shader.setUniform("blurWeight", BLUR_WEIGHT);
-    shader.setUniform("blurDecreaseFactor", BLUR_WEIGHT_DECREASE_FACTOR);
 
     // FPS text setup
     fpsText.setString("75");
@@ -64,17 +62,10 @@ class App {
     grid.reserve(COLUMNS * ROWS);
     flames.reserve(FLAME_COUNT);
 
-    // Probably better to create this than modifying IX macro
-    // since its need more to calculate and do it all the time
-    // but this one just once per launch
-    auto ix = [] (int x, int y) {
-      return x + y * COLUMNS;
-    };
-
     // Setup all cells with its neighbours
     for (int x = 0; x < COLUMNS; x++) {
       for (int y = 0; y < ROWS; y++) {
-        Cell& cell = grid[ix(x, y)];
+        Cell& cell = grid[IX(x, y)];
         cell.setPosition(x * CELL_SIZE, y * CELL_SIZE);
         cell.setSize({CELL_SIZE, CELL_SIZE});
         cell.setFillColor(sf::Color::Transparent);
@@ -86,52 +77,48 @@ class App {
 
         // Left cell
         if (x > 0) {
-          cellNeighbours.push_back(&grid[ix(x - 1, y)]);
+          cellNeighbours.push_back(&grid[IX(x - 1, y)]);
 
           // Up-left cell
           if (y > 0)
-            cellNeighbours.push_back(&grid[ix(x - 1, y - 1)]);
+            cellNeighbours.push_back(&grid[IX(x - 1, y - 1)]);
 
           // Down-left cell
           if (y < ROWS - 1)
-            cellNeighbours.push_back(&grid[ix(x - 1, y + 1)]);
+            cellNeighbours.push_back(&grid[IX(x - 1, y + 1)]);
         }
 
         // Right cell
         if (x < COLUMNS - 1) {
-          cellNeighbours.push_back(&grid[ix(x + 1, y)]);
+          cellNeighbours.push_back(&grid[IX(x + 1, y)]);
 
           // Up-right cell
           if (y > 0)
-            cellNeighbours.push_back(&grid[ix(x + 1, y - 1)]);
+            cellNeighbours.push_back(&grid[IX(x + 1, y - 1)]);
 
           // Down-right cell
           if (y < ROWS - 1)
-            cellNeighbours.push_back(&grid[ix(x + 1, y + 1)]);
+            cellNeighbours.push_back(&grid[IX(x + 1, y + 1)]);
         }
 
         // Up cell
         if (y > 0)
-          cellNeighbours.push_back(&grid[ix(x, y - 1)]);
+          cellNeighbours.push_back(&grid[IX(x, y - 1)]);
 
         // Down cell
         if (y < ROWS - 1)
-          cellNeighbours.push_back(&grid[ix(x, y + 1)]);
+          cellNeighbours.push_back(&grid[IX(x, y + 1)]);
       }
     }
 
     // Spawn initial circles
-    for (int i = 0; i < 3000; i++) {
-      int x = random(WIDTH);
-      int y = random(HEIGHT);
-
+    for (int i = 0; i < 5000; i++) {
       sf::Vector2f pos{
-        static_cast<float>(x),
-        static_cast<float>(y)
+        static_cast<float>(random(WIDTH)),
+        static_cast<float>(random(HEIGHT))
       };
 
-      VerletObject circle(pos, pos);
-      addCircle(circle);
+      addCircle(VerletObject(pos, pos));
     }
   }
 
@@ -163,8 +150,8 @@ class App {
     // Fill all cells with new circles
     for (VerletObject& circle : circles) {
       sf::Vector2f pos = circle.getPosition();
-      int x = pos.x;
-      int y = pos.y;
+      int x = pos.x / CELL_SIZE;
+      int y = pos.y / CELL_SIZE;
 
       grid[IX(x, y)].container.push_back(&circle);
     }
@@ -184,26 +171,36 @@ class App {
   }
 
   void draw() {
-    // Draw all circles on texture
+    // Draw all circles
     for (const VerletObject& circle : circles)
       backgroundTexture.draw(circle);
+    window.draw(backgroundSprite);
 
-    // Draw texture on screen
-    if (useShader)
-      window.draw(background, &shader);
-    else
-      window.draw(background);
+    // Apply bloom shader
+    if (useShader) {
+      bool isHorizontal = true;
+      for (int i = 0; i < config::shader::bloomIntensity; i++) {
+        shader.setUniform("isHorizontal", isHorizontal);
+        backgroundTexture.draw(backgroundSprite, &shader);
+        isHorizontal = !isHorizontal;
+      }
+      window.draw(backgroundSprite, sf::BlendAdd);
+    }
 
+    // Highlight cell edges if there at least one circle
     if (highlightCircleCell) {
       for (Cell& cell : grid) {
         cell.highlight(sf::Color::Magenta);
         window.draw(cell);
       }
     }
+
     // Show FPS
-    int fps = static_cast<int>((1.f / dt));
-    fpsText.setString(std::to_string(fps));
-    window.draw(fpsText);
+    if (showFps) {
+      int fps = static_cast<int>((1.f / dt));
+      fpsText.setString(std::to_string(fps));
+      window.draw(fpsText);
+    }
   }
 
   void drawImGui(sf::Time deltaTime) {
@@ -221,10 +218,13 @@ class App {
     ImGui::Text("Temperature");
     ImGui::SliderFloat("Heat transfer", &config::temperature::heatTransferFactor, 0.001f, 0.1f);
     ImGui::SliderFloat("Heating factor", &config::temperature::heatingFactor, 0.1f, 100.f);
-    ImGui::SliderFloat("Cooling factor", &config::temperature::coolingFactor, 0.1f, 100.f);
+    ImGui::SliderFloat("Cooling factor", &config::temperature::coolingFactor, 0.1f, 3.f);
 
     ImGui::Text("Upward force");
     ImGui::SliderFloat("Scale", &config::upwardForce::scale, 0.f, 10.f);
+
+    ImGui::Text("Shader");
+    ImGui::SliderInt("Bloom intensity", &config::shader::bloomIntensity, 0, 100);
 
     if (ImGui::Button("Reset"))
       config::reset();
@@ -262,11 +262,14 @@ class App {
               case sf::Keyboard::Key::Q:
                 window.close();
                 break;
-              case sf::Keyboard::Key::C:
+              case sf::Keyboard::Key::S:
                 useShader = !useShader;
                 break;
               case sf::Keyboard::Key::H:
                 highlightCircleCell = !highlightCircleCell;
+                break;
+              case sf::Keyboard::Key::F:
+                showFps = !showFps;
                 break;
               default:
                 break;

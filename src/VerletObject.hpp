@@ -46,15 +46,13 @@ struct VerletObject : sf::CircleShape {
 
     sf::Vector2f pos1 = getPosition();
     sf::Vector2f pos2 = rhs->getPosition();
-    float minDist = RADIUS * 2;
 
     sf::Vector2f v = pos1 - pos2;
     float distSquared = v.x * v.x + v.y * v.y;
-    float minDistSquared = minDist * minDist;
 
     if (distSquared < minDistSquared) {
       float dist = sqrt(distSquared);
-      dist = std::clamp(dist, 0.1f, RADIUS * 2.f);
+      dist = std::clamp(dist, RADIUS * 1.f, RADIUS * 2.f);
       float delta = minDist - dist;
       sf::Vector2f n = v / dist;
       sf::Vector2f move = 0.5f * delta * n;
@@ -62,7 +60,6 @@ struct VerletObject : sf::CircleShape {
       setPosition(pos1 + move);
       rhs->setPosition(pos2 - move);
       config::temperature::transfer(temperature, rhs->temperature);
-
     } else if (distSquared == minDistSquared)
       config::temperature::transfer(temperature, rhs->temperature);
   }
@@ -83,6 +80,9 @@ struct VerletObject : sf::CircleShape {
   }
 
   private:
+    const float minDist = RADIUS * 2;
+    const float minDistSquared = minDist * minDist;
+
     sf::Vector2f positionPrevious;
     float acceleration = 0.f;
     float temperature = 2000.f;

@@ -16,6 +16,10 @@ namespace config {
     float calculate(const float& t);
   }
 
+  namespace shader {
+    extern int bloomIntensity;
+  }
+
   void reset();
 };
 
