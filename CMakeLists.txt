@@ -18,7 +18,7 @@ include_directories(${OPENGL_INCLUDE_DIRS} ${IMGUI} ${IMGUI_SFML} ${MY_UTILS_PAT
 
 add_executable(MyProject
   ${SRC_DIR}main.cpp
-  ${SRC_DIR}utils/sfmlrectangle.cpp
+  ${SRC_DIR}utils/ThreadPool.cpp
   ${SRC_DIR}utils/config.cpp
   ${MY_UTILS_PATH}myutils.cpp
   ${IMGUI}imgui.cpp

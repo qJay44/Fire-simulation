@@ -9,7 +9,7 @@ class Flame {
     Flame(const std::vector<Cell>& grid, int x0) {
       for (int x = x0; x < x0 + FLAME_WIDTH; x++)
        for (int y = 0; y < ROWS; y++)
-          area.push_back(&grid[x + y * COLUMNS]);
+          area.push_back(&grid[IX(x, y)]);
     }
 
     // Returns elapsed time in seconds

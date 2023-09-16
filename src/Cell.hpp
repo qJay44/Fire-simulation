@@ -1,5 +1,4 @@
 #include "VerletObject.hpp"
-#include <map>
 #include <vector>
 
 struct Cell : sf::RectangleShape {

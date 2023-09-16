@@ -34,7 +34,7 @@ struct VerletObject : sf::CircleShape {
     if      (nextPos.y - RADIUS < 0)      {nextPos.y = RADIUS; onTopBoundHit();}
     else if (nextPos.y + RADIUS > HEIGHT) {nextPos.y = HEIGHT - RADIUS; onBottomBoundHit(nextPos);}
 
-    acceleration = {};
+    acceleration = 0.f;
     config::temperature::cool(temperature);
 
     setPosition(nextPos);

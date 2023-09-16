@@ -1,6 +1,6 @@
 #include "SFML/Window.hpp"
+#include "utils/ThreadPool.h"
 #include "Flame.hpp"
-#include "utils/sfmlrectangle.h"
 #include "imgui.h"
 #include "imgui-SFML.h"
 
@@ -18,18 +18,22 @@ class App {
   std::vector<Flame> flames;
   float dt;
 
+  ThreadPool tp;
+  const int tpSize = 0;
+  const int tpSlice = 0;
+
   sf::RenderTexture backgroundTexture;
   sf::Sprite backgroundSprite;
 
-  bool doOnce = true;
   bool useShader = true;
   bool highlightCircleCell = false;
   bool showFps = true;
+  bool highlightThreadsAreaBoundaries = false;
   VerletObject* grabbedCircle = nullptr;
 
   void setupSFML() {
     // Setup main window
-    window.create(sf::VideoMode(WIDTH, HEIGHT), "Template text", sf::Style::Close);
+    window.create(sf::VideoMode(WIDTH, HEIGHT), "Fire simulation", sf::Style::Close);
     window.setFramerateLimit(90);
 
     if (!ImGui::SFML::Init(window))
@@ -62,6 +66,13 @@ class App {
     grid.reserve(COLUMNS * ROWS);
     flames.reserve(FLAME_COUNT);
 
+    tp.start();
+    int* tpSizePtr = const_cast<int*>(&tpSize);
+    *tpSizePtr = tp.availableThreads();
+
+    int* tpSlicePtr = const_cast<int*>(&tpSlice);
+    *tpSlicePtr = COLUMNS / tpSize;
+
     // Setup all cells with its neighbours
     for (int x = 0; x < COLUMNS; x++) {
       for (int y = 0; y < ROWS; y++) {
@@ -70,7 +81,9 @@ class App {
         cell.setSize({CELL_SIZE, CELL_SIZE});
         cell.setFillColor(sf::Color::Transparent);
         cell.setOutlineThickness(1.f);
+
         std::vector<Cell*>& cellNeighbours = cell.neighbours;
+        cellNeighbours.reserve(9);
 
         // Center
         cellNeighbours.push_back(&cell);
@@ -112,26 +125,28 @@ class App {
     }
 
     // Spawn initial circles
-    for (int i = 0; i < 5000; i++) {
+    for (int i = 0; i < 9000; i++) {
       sf::Vector2f pos{
         static_cast<float>(random(WIDTH)),
         static_cast<float>(random(HEIGHT))
       };
 
-      addCircle(VerletObject(pos, pos));
+      addCircle(pos, pos);
     }
   }
 
-  void addCircle(VerletObject circle) {
-    circles.push_back(circle);
+  void addCircle(sf::Vector2f posPrev, sf::Vector2f posCurr) {
+    circles.push_back(VerletObject(posPrev, posCurr));
   }
 
   void updateFlames() {
+    // Create new flames if possible
     for (int i = flames.size(); i < FLAME_COUNT; i++) {
       int flameStart = random(COLUMNS - FLAME_WIDTH);
       flames.push_back(Flame(grid, flameStart));
     }
 
+    // Execute flame job
     for (int i = 0; i < flames.size(); i++)
       if (flames[i].execute() > FLAME_MAX_LIFETIME)
         flames.erase(flames.begin() + i);
@@ -140,6 +155,13 @@ class App {
   void updatePosition(float dt) {
     for (VerletObject& circle : circles)
       circle.updatePosition(dt);
+  }
+
+  void threadedSolveCollisions(int x0, int x1) {
+    // Check collisions for all circles in cells
+    for (int x = x0; x < x1; x++)
+      for (int y = 0; y < ROWS; y++)
+        grid[IX(x, y)].checkCollisions();
   }
 
   void solveCollisions() {
@@ -156,9 +178,14 @@ class App {
       grid[IX(x, y)].container.push_back(&circle);
     }
 
-    // Check collisions for all circles in cells
-    for (const Cell& cell : grid)
-      cell.checkCollisions();
+    // Queue collision detection function in the thread loop
+    for (int i = 0; i < tpSize; i++) {
+      int x0 = i * tpSlice;
+      int x1 = x0 + tpSlice;
+
+      tp.queueJob([this, x0, x1] { threadedSolveCollisions(x0, x1); });
+    }
+    tp.waitForCompletion();
   }
 
   void update() {
@@ -171,6 +198,7 @@ class App {
   }
 
   void draw() {
+    // TODO: Implement vertex array of circles
     // Draw all circles
     for (const VerletObject& circle : circles)
       backgroundTexture.draw(circle);
@@ -195,6 +223,17 @@ class App {
       }
     }
 
+    if (highlightThreadsAreaBoundaries) {
+      for (int i = 0; i < tpSize; i++) {
+        sf::RectangleShape rect({tpSlice * CELL_SIZE * 1.f, HEIGHT});
+        rect.setPosition(i * tpSlice * CELL_SIZE, 0);
+        rect.setFillColor(sf::Color::Transparent);
+        rect.setOutlineThickness(1.f);
+        rect.setOutlineColor(sf::Color::Magenta);
+        window.draw(rect);
+      }
+    }
+
     // Show FPS
     if (showFps) {
       int fps = static_cast<int>((1.f / dt));
@@ -204,6 +243,7 @@ class App {
   }
 
   void drawImGui(sf::Time deltaTime) {
+    static bool doOnce = true;
     ImGui::SFML::Update(window, deltaTime);
 
     if (doOnce) {
@@ -235,7 +275,9 @@ class App {
   public:
     App() {}
 
-    ~App() {}
+    ~App() {
+      tp.stop();
+    }
 
     void setup() {
       setupSFML();
@@ -271,6 +313,9 @@ class App {
               case sf::Keyboard::Key::F:
                 showFps = !showFps;
                 break;
+              case sf::Keyboard::Key::T:
+                highlightThreadsAreaBoundaries = !highlightThreadsAreaBoundaries;
+                break;
               default:
                 break;
             }
@@ -283,7 +328,7 @@ class App {
               static_cast<float>(sf::Mouse::getPosition(window).y)
             };
             if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && !onImGui())
-              addCircle(VerletObject(mousePrev, mouseCurr));
+              addCircle(mousePrev, mouseCurr);
 
             mousePrev = mouseCurr;
           }
@@ -306,7 +351,7 @@ class App {
           if (event.type == sf::Event::MouseButtonReleased) {
             // Add circle (while not moving)
             if (event.mouseButton.button == sf::Mouse::Left && !onImGui())
-              addCircle(VerletObject(mousePrev, mouseCurr));
+              addCircle(mousePrev, mouseCurr);
 
             // Leave grabbed circle
             if (event.mouseButton.button == sf::Mouse::Right) {
