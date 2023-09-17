@@ -24,6 +24,8 @@ class App {
 
   sf::RenderTexture backgroundTexture;
   sf::Sprite backgroundSprite;
+  sf::VertexArray va{sf::Quads};
+  sf::Texture circleTexture;
 
   bool useShader = true;
   bool highlightCircleCell = false;
@@ -47,6 +49,10 @@ class App {
     backgroundSprite.setTexture(backgroundTexture.getTexture());
     backgroundTexture.display();
 
+    circleTexture.loadFromFile("../../src/res/circle.png");
+    circleTexture.generateMipmap();
+    circleTexture.setSmooth(true);
+
     // Shader setup
     shader.loadFromFile("../../src/shaders/circle.frag", sf::Shader::Fragment);
     shader.setUniform("texture", backgroundTexture.getTexture());
@@ -66,7 +72,7 @@ class App {
     grid.reserve(COLUMNS * ROWS);
     flames.reserve(FLAME_COUNT);
 
-    tp.start();
+    tp.start(1);
     int* tpSizePtr = const_cast<int*>(&tpSize);
     *tpSizePtr = tp.availableThreads();
 
@@ -125,7 +131,7 @@ class App {
     }
 
     // Spawn initial circles
-    for (int i = 0; i < 9000; i++) {
+    for (int i = 0; i < 10000; i++) {
       sf::Vector2f pos{
         static_cast<float>(random(WIDTH)),
         static_cast<float>(random(HEIGHT))
@@ -171,7 +177,7 @@ class App {
 
     // Fill all cells with new circles
     for (VerletObject& circle : circles) {
-      sf::Vector2f pos = circle.getPosition();
+      sf::Vector2f pos = circle.position;
       int x = pos.x / CELL_SIZE;
       int y = pos.y / CELL_SIZE;
 
@@ -197,11 +203,42 @@ class App {
     }
   }
 
+  void prepareVertices() {
+    va.resize(circles.size() * 4);
+    float texWidght = circleTexture.getSize().x;
+    float texHeight = circleTexture.getSize().y;
+
+    for (int i = 0; i < circles.size(); i++) {
+      const VerletObject& circle = circles[i];
+      const sf::Vector2f& pos = circle.position;
+      const sf::Color& color = circle.color;
+      const int ii = i << 2;
+
+      sf::Vertex& topLeft     = va[ii + 0];
+      sf::Vertex& topRight    = va[ii + 1];
+      sf::Vertex& bottomRight = va[ii + 2];
+      sf::Vertex& bottomLeft  = va[ii + 3];
+
+      topLeft.position     = pos + sf::Vector2f{-RADIUS, -RADIUS};
+      topRight.position    = pos + sf::Vector2f{ RADIUS, -RADIUS};
+      bottomRight.position = pos + sf::Vector2f{ RADIUS,  RADIUS};
+      bottomLeft.position  = pos + sf::Vector2f{-RADIUS,  RADIUS};
+
+      topLeft.texCoords     = {0.f      , 0.f      };
+      topRight.texCoords    = {texWidght, 0.f      };
+      bottomRight.texCoords = {texWidght, texHeight};
+      bottomLeft.texCoords  = {0.f      , texHeight};
+
+      topLeft.color     = color;
+      topRight.color    = color;
+      bottomRight.color = color;
+      bottomLeft.color  = color;
+    }
+  }
+
   void draw() {
-    // TODO: Implement vertex array of circles
-    // Draw all circles
-    for (const VerletObject& circle : circles)
-      backgroundTexture.draw(circle);
+    prepareVertices();
+    backgroundTexture.draw(va, &circleTexture);
     window.draw(backgroundSprite);
 
     // Apply bloom shader

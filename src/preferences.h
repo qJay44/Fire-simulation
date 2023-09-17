@@ -1,7 +1,7 @@
 // Main
 #define WIDTH 1600
 #define HEIGHT 900
-#define RADIUS 3
+#define RADIUS 2
 #define SUB_STEPS 3
 
 // Grid config
