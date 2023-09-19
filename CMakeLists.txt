@@ -20,6 +20,8 @@ add_executable(MyProject
   ${SRC_DIR}main.cpp
   ${SRC_DIR}utils/ThreadPool.cpp
   ${SRC_DIR}utils/config.cpp
+  ${SRC_DIR}physics/Physics.cpp
+  ${SRC_DIR}render/Render.cpp
   ${MY_UTILS_PATH}myutils.cpp
   ${IMGUI}imgui.cpp
   ${IMGUI}imgui_widgets.cpp
@@ -28,5 +30,6 @@ add_executable(MyProject
   ${IMGUI_SFML}imgui-SFML.cpp
 )
 
+target_precompile_headers(${PROJECT_NAME} PUBLIC ${SRC_DIR}pch.h)
 target_link_libraries(MyProject sfml-system sfml-window sfml-graphics ${OPENGL_LIBRARIES})
 

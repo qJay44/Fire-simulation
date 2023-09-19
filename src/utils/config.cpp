@@ -1,5 +1,4 @@
 #include "config.h"
-#include "../preferences.h"
 #include <algorithm>
 
 namespace config {

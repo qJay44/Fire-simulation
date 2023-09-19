@@ -63,7 +63,8 @@ void ThreadPool::stop() {
   threads.clear();
 }
 
-int ThreadPool::availableThreads() const{
+// Threads amount
+const int ThreadPool::size() const {
   return threads.size();
 }
 

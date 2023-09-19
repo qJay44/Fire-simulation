@@ -10,7 +10,7 @@ struct Cell : sf::RectangleShape {
       for (VerletObject* circle1 : container)
         for (VerletObject* circle2 : cell->container)
           if (circle1 != circle2)
-            circle1->checkCollision(circle2);
+            circle1->checkContact(circle2);
   }
 
   void highlight(sf::Color col) {

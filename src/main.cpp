@@ -1,10 +1,13 @@
-#include "App.hpp"
+#include "render/Render.h"
 
 int main() {
-  App app;
+  ThreadPool tp;
+  tp.start(1);
 
-  app.setup();
-  app.run();
+  Physics physics(&tp);
+  Render render(&tp, &physics);
+
+  render.run();
 
 	return 0;
 }

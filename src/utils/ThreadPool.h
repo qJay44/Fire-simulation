@@ -1,3 +1,5 @@
+#pragma once
+
 /* Sources:
  * https://stackoverflow.com/a/32593825/17694832
  * https://github.com/johnBuffer/VerletSFML-Multithread/blob/main/src/thread_pool/thread_pool.hpp
@@ -27,6 +29,7 @@ class ThreadPool {
     void queueJob(const std::function<void()>& job);
     void waitForCompletion() const;
     void stop();
-    int availableThreads() const;
+
+    const int size() const;
 };
 

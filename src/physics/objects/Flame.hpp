@@ -1,4 +1,3 @@
-#include <vector>
 #include "Cell.hpp"
 
 class Flame {
