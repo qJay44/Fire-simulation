@@ -78,13 +78,7 @@ void Render::run() {
         };
         if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && !hoveringImGui())
           physics->addCircle(mousePrev, mouseCurr);
-
-        mousePrev = mouseCurr;
       }
-
-      // Grab the circle and drag it
-      if (sf::Mouse::isButtonPressed(sf::Mouse::Right))
-        physics->grabCircle(mouseCurr);
 
       if (event.type == sf::Event::MouseButtonReleased) {
         // Add circle (while not moving)
@@ -93,9 +87,13 @@ void Render::run() {
 
         // Leave grabbed circle
         if (event.mouseButton.button == sf::Mouse::Right)
-          physics->releaseCircle();
+          physics->releaseCircle(sf::Vector2f{mousePrev}, mouseCurr);
       }
     }
+
+    // Grab a circle and drag it
+    if (sf::Mouse::isButtonPressed(sf::Mouse::Right))
+      physics->grabCircle(sf::Mouse::getPosition(window));
 
     sf::Time deltaTime = clock.restart();
     physics->update(deltaTime.asSeconds());
@@ -108,6 +106,8 @@ void Render::run() {
 
     ImGui::SFML::Render(window);
     window.display();
+
+    mousePrev = mouseCurr;
   }
 }
 
@@ -210,11 +210,11 @@ void Render::drawGUI(sf::Time deltaTime) {
 
   ImGui::Text("Temperature");
   ImGui::SliderFloat("Heat transfer", &config::temperature::heatTransferFactor, 0.001f, 0.1f);
-  ImGui::SliderFloat("Heating factor", &config::temperature::heatingFactor, 0.1f, 100.f);
-  ImGui::SliderFloat("Cooling factor", &config::temperature::coolingFactor, 0.1f, 3.f);
+  ImGui::SliderFloat("Heating factor", &config::temperature::heatingFactor, 0.1f, 500.f);
+  ImGui::SliderFloat("Cooling factor", &config::temperature::coolingFactor, 0.01f, 1.f);
 
   ImGui::Text("Upward force");
-  ImGui::SliderFloat("Scale", &config::upwardForce::scale, 0.f, 10.f);
+  ImGui::SliderFloat("Scale", &config::upwardForce::scale, 0.f, 100.f);
 
   ImGui::Text("Shader");
   ImGui::SliderInt("Bloom intensity", &config::shader::bloomIntensity, 0, 100);

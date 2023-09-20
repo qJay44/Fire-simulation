@@ -2,7 +2,7 @@
 
 int main() {
   ThreadPool tp;
-  tp.start(1);
+  tp.start();
 
   Physics physics(&tp);
   Render render(&tp, &physics);

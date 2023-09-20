@@ -4,20 +4,17 @@
 namespace config {
   float gravity = 400.f;
 
-  namespace temperature {
+  namespace config::temperature {
     const float min = 0.f;
     const float max = 5000.f;
     const float vary = (max * 10.f) / max;
 
     float heatingFactor = 19.679f;
     float coolingFactor = 0.36f;
-    float heatTransferFactor = 0.01f;
+    float heatTransferFactor = 0.002f;
 
-    // Private
-    namespace {
-      void clamp(float& t) {
-        t = std::clamp(t, min, max);
-      }
+    void clamp(float& t) {
+      t = std::clamp(t, min, max);
     }
 
     void cool(float& t) {
@@ -44,10 +41,10 @@ namespace config {
   }
 
   namespace upwardForce {
-    float scale = 6.f;
+    float scale = 22.116f;
 
     float calculate(const float& t)  {
-      return (t * t * scale * 0.001f) / (temperature::max * 290.f);
+      return (t * t * scale * 0.000001f) / (temperature::max);
     }
   }
 
@@ -60,9 +57,9 @@ namespace config {
 
    temperature::heatingFactor = 19.679f;
    temperature::coolingFactor = 0.36f;
-   temperature::heatTransferFactor = 0.01f;
+   temperature::heatTransferFactor = 0.002f;
 
-   upwardForce::scale = 6.f;
+   upwardForce::scale = 22.116f;
   }
 };
 

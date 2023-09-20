@@ -2,8 +2,8 @@
 // Main
 #define WIDTH 1600
 #define HEIGHT 900
-#define RADIUS 2
-#define INITIAL_CIRCLES 10000
+#define RADIUS 3
+#define INITIAL_CIRCLES 25000
 #define SUB_STEPS 3
 
 // Grid config
@@ -17,9 +17,9 @@
 #define IX(x, y) ((x) + (y) * (COLUMNS))
 
 // Flame confing
-#define FLAME_WIDTH 5 // Cells count
-#define FLAME_COUNT 5
-#define FLAME_MAX_LIFETIME 5
+#define FLAME_COUNT 4
+#define FLAME_WIDTH 20 // Cells
+#define FLAME_MAX_LIFETIME 4 // Seconds
 
 namespace config {
   extern float gravity;

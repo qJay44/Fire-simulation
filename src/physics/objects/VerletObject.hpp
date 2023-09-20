@@ -14,9 +14,9 @@ class VerletObject {
   void generateHeatColor() {
     float t = temperature / config::temperature::max * 3 * 256;
 
-    color.r = std::clamp(t, 0.f, 255.f);
-    color.g = std::clamp(t - color.r, 0.f, 255.f);
-    color.b = std::clamp(t - color.r - color.g, 0.f, 255.f);
+    color.r = std::clamp(t, 10.f, 255.f);
+    color.g = std::clamp(t - color.r, 10.f, 255.f);
+    color.b = std::clamp(t - color.r - color.g, 10.f, 255.f);
   }
 
   public:
@@ -24,7 +24,6 @@ class VerletObject {
       : positionPrevious(prev), position(curr) {}
 
     void updatePosition(float dt) {
-      if (grabbed) return;
       acceleration += config::gravity;
 
       sf::Vector2f velocity = position - positionPrevious;
@@ -45,35 +44,35 @@ class VerletObject {
       acceleration = 0.f;
       config::temperature::cool(temperature);
 
-      position = nextPos;
+      if (!grabbed) position = nextPos;
       generateHeatColor();
     }
 
     void checkContact(VerletObject* rhs) {
-      if (grabbed) return;
-
       constexpr float minDist = RADIUS * 2;
       constexpr float minDistSquared = minDist * minDist;
       constexpr float threshold = 0.0001f;
+
+      // Reducing detla distance to keep circles more stable after gaining high velocity
+      constexpr float reduce = 0.2f;
 
       sf::Vector2f v = position - rhs->position;
       float distSquared = v.x * v.x + v.y * v.y;
 
       if (distSquared < minDistSquared && distSquared > threshold) {
         float dist = sqrt(distSquared);
-        float delta = 0.5f * (minDist - dist);
+        float delta = 0.5f * (minDist - dist) * reduce;
         sf::Vector2f move = v / dist * delta;
 
-        position += move;
+        if (!grabbed) position += move;
         rhs->position -= move;
-
         config::temperature::transfer(temperature, rhs->temperature);
-      } else if (distSquared == minDistSquared)
-        config::temperature::transfer(temperature, rhs->temperature);
+      }
     }
 
     void toss() {
-      position.y -= config::upwardForce::calculate(temperature);
+      if (!grabbed)
+        position.y -= config::upwardForce::calculate(temperature);
     }
 
     void setGrabStatus(bool grabbed) {
@@ -81,8 +80,15 @@ class VerletObject {
     }
 
     void setGrabPosition(sf::Vector2f pos) {
+      pos.x = std::clamp(pos.x, RADIUS*1.f, WIDTH  - RADIUS*1.f);
+      pos.y = std::clamp(pos.y, RADIUS*1.f, HEIGHT - RADIUS*1.f);
       position = pos;
       positionPrevious = pos;
+    }
+
+    void setGrabPosition(sf::Vector2f prev, sf::Vector2f curr) {
+      positionPrevious = prev;
+      position = curr;
     }
 
     const sf::Vector2f& getPosition() const {

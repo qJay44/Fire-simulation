@@ -20,8 +20,8 @@ class Physics {
     ~Physics();
 
     void addCircle(sf::Vector2f posPrev, sf::Vector2f posCurr);
-    void grabCircle(sf::Vector2f mouse);
-    void releaseCircle();
+    void grabCircle(sf::Vector2i mouse);
+    void releaseCircle(sf::Vector2f mousePrev, sf::Vector2f mouseCurr);
     void update(float dt);
 
     int getCirclesSize() const;

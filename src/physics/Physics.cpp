@@ -76,29 +76,29 @@ void Physics::addCircle(sf::Vector2f posPrev, sf::Vector2f posCurr) {
   circles.push_back(VerletObject(posPrev, posCurr));
 }
 
-void Physics::grabCircle(sf::Vector2f mouse) {
+void Physics::grabCircle(sf::Vector2i mouse) {
   if (!grabbedCircle) {
-    int x = mouse.x;
-    int y = mouse.y;
-    std::vector<VerletObject*>& cont = grid[IX(x, y)].container;
+    int x = std::clamp(mouse.x / CELL_SIZE, 0, COLUMNS - 1);
+    int y = std::clamp(mouse.y / CELL_SIZE, 0, ROWS - 1);
+    const std::vector<VerletObject*>& cont = grid[IX(x, y)].container;
 
     if (cont.size() > 0) {
       grabbedCircle = cont[0];
       grabbedCircle->setGrabStatus(true);
     }
   } else
-    grabbedCircle->setGrabPosition(mouse);
+    grabbedCircle->setGrabPosition(sf::Vector2f{mouse});
 }
 
-void Physics::releaseCircle() {
+void Physics::releaseCircle(sf::Vector2f mousePrev, sf::Vector2f mouseCurr) {
   if (grabbedCircle) {
     grabbedCircle->setGrabStatus(false);
+    grabbedCircle->setGrabPosition(mousePrev, mouseCurr);
     grabbedCircle = nullptr;
   }
 }
 
 void Physics::threadedSolveCollisions(int x0, int x1) {
-  // Check collisions for all circles in cells
   for (int x = x0; x < x1; x++)
     for (int y = 0; y < ROWS; y++)
       grid[IX(x, y)].checkCollisions();
@@ -112,22 +112,21 @@ void Physics::solveCollisions() {
   // Fill all cells with new circles
   for (VerletObject& circle : circles) {
     sf::Vector2f pos = circle.getPosition();
-    int x = pos.x / CELL_SIZE;
-    int y = pos.y / CELL_SIZE;
+    int x = std::clamp(pos.x / CELL_SIZE, 0.f, COLUMNS - 1.f);
+    int y = std::clamp(pos.y / CELL_SIZE, 0.f, ROWS - 1.f);
 
     grid[IX(x, y)].container.push_back(&circle);
   }
 
-  // Queue collision detection function in the thread loop
+  // Split collision solves in according number of threads
+  static const int slice = COLUMNS / tp->size(); // Splitting the screen vertically
   for (int i = 0; i < tp->size(); i++) {
-    static const int slice = COLUMNS / tp->size();
     int x0 = i * slice;
     int x1 = x0 + slice;
 
     tp->queueJob([this, x0, x1] { threadedSolveCollisions(x0, x1); });
   }
   tp->waitForCompletion();
-
 }
 
 void Physics::updatePosition(float dt) {
