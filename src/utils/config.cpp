@@ -4,7 +4,7 @@
 namespace config {
   float gravity = 400.f;
 
-  namespace config::temperature {
+  namespace temperature {
     const float min = 0.f;
     const float max = 5000.f;
     const float vary = (max * 10.f) / max;
@@ -41,7 +41,7 @@ namespace config {
   }
 
   namespace upwardForce {
-    float scale = 22.116f;
+    float scale = 10.896f;
 
     float calculate(const float& t)  {
       return (t * t * scale * 0.000001f) / (temperature::max);
@@ -59,7 +59,7 @@ namespace config {
    temperature::coolingFactor = 0.36f;
    temperature::heatTransferFactor = 0.002f;
 
-   upwardForce::scale = 22.116f;
+   upwardForce::scale = 10.896f;
   }
 };
 

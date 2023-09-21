@@ -119,6 +119,8 @@ void Physics::solveCollisions() {
   }
 
   // Split collision solves in according number of threads
+  // BUG: Odd number of threads leads to a small part of the screen won't be checked for collision,
+  // but it is actually better
   static const int slice = COLUMNS / tp->size(); // Splitting the screen vertically
   for (int i = 0; i < tp->size(); i++) {
     int x0 = i * slice;
